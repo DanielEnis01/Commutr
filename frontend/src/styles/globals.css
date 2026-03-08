@@ -1,0 +1,25 @@
+:root {
+  --bg: #07080f;
+  --surface: #111118;
+  --glass: rgba(255,255,255,0.04);
+  --glass-border: rgba(255,255,255,0.08);
+  --text: #f0f0f8;
+  --muted: rgba(255,255,255,0.35);
+  --accent: #5ee7ff;
+  --green: #4effa0;
+  --yellow: #ffe566;
+  --red: #ff6b6b;
+  --card-radius: 20px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: sans-serif;
+}
