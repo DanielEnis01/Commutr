@@ -83,6 +83,7 @@ export default function SidePanel({
   onVoiceTrigger,
   voiceChatMessages,
   isNavigating,
+  voicePlaybackActive,
   devToolsOpen,
   onToggleDevTools,
   selectedPermit,
@@ -324,13 +325,13 @@ export default function SidePanel({
 
             <div className="voice-control-panel">
               <button
-                className={`voice-prompt-button ${voiceState?.busy ? "busy" : ""}`}
+                className={`voice-prompt-button ${voiceState?.busy || voicePlaybackActive ? "busy" : ""}`}
                 onClick={onVoiceTrigger}
-                disabled={voiceState?.busy}
+                disabled={voiceState?.busy || voicePlaybackActive}
                 type="button"
               >
                 <span className="voice-prompt-button-label">
-                  {voiceState?.busy ? "Listening..." : "Tap To Speak"}
+                  {voiceState?.busy ? "Listening..." : voicePlaybackActive ? "Speaking..." : "Tap To Speak"}
                 </span>
                 <span className="voice-prompt-button-sub">
                   {voiceConversation?.awaiting_confirmation

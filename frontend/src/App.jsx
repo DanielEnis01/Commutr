@@ -24,6 +24,7 @@ export default function App() {
     transcript: "",
     message: "Voice guidance is ready",
   });
+  const [voicePlaybackActive, setVoicePlaybackActive] = useState(false);
   const audioRef = useRef(null);
   const lastSpokenInstructionRef = useRef("");
   const voiceConversationRef = useRef(null);
@@ -32,9 +33,11 @@ export default function App() {
   const suppressWakeWordRef = useRef(false);
   const autoListenAfterAudioRef = useRef(false);
   const pendingNavigationStartRef = useRef(null);
+  const voiceInteractionLockRef = useRef(false);
   const modeRef = useRef(mode);
   const voiceBusyRef = useRef(voiceState.busy);
   const navigationStateRef = useRef(navigationState);
+  const voicePlaybackActiveRef = useRef(false);
 
   useEffect(() => {
     voiceConversationRef.current = voiceConversation;
@@ -47,6 +50,10 @@ export default function App() {
   useEffect(() => {
     voiceBusyRef.current = voiceState.busy;
   }, [voiceState.busy]);
+
+  useEffect(() => {
+    voicePlaybackActiveRef.current = voicePlaybackActive;
+  }, [voicePlaybackActive]);
 
   useEffect(() => {
     navigationStateRef.current = navigationState;
@@ -81,6 +88,8 @@ export default function App() {
     pendingNavigationStartRef.current = null;
     autoListenAfterAudioRef.current = false;
     lastSpokenInstructionRef.current = "";
+    voiceInteractionLockRef.current = false;
+    setVoicePlaybackActive(false);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -101,6 +110,7 @@ export default function App() {
         autoListenAfterAudio: true,
       });
     } catch {
+      voiceInteractionLockRef.current = false;
       setVoiceState((current) => ({
         ...current,
         message: greeting,
@@ -109,7 +119,11 @@ export default function App() {
   };
 
   const playAudioPayload = (audioBase64, mimeType = "audio/mpeg", options = {}) => {
-    if (!audioBase64) return;
+    if (!audioBase64) {
+      voiceInteractionLockRef.current = false;
+      setVoicePlaybackActive(false);
+      return;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -118,8 +132,14 @@ export default function App() {
     audioRef.current = audio;
     suppressWakeWordRef.current = true;
     autoListenAfterAudioRef.current = Boolean(options.autoListenAfterAudio);
+    setVoicePlaybackActive(true);
+    let finished = false;
 
     const finishAudio = () => {
+      if (finished) return;
+      finished = true;
+      setVoicePlaybackActive(false);
+      voiceInteractionLockRef.current = false;
       suppressWakeWordRef.current = false;
       const pendingNavigation = pendingNavigationStartRef.current;
       pendingNavigationStartRef.current = null;
@@ -132,6 +152,7 @@ export default function App() {
         shouldAutoListen &&
         modeRef.current === "voice" &&
         !voiceBusyRef.current &&
+        !voicePlaybackActiveRef.current &&
         !navigationStateRef.current.isNavigating
       ) {
         window.setTimeout(() => {
@@ -146,7 +167,9 @@ export default function App() {
     audio.onpause = () => {
       finishAudio();
     };
-    audio.play().catch(() => {});
+    audio.play().catch(() => {
+      finishAudio();
+    });
   };
 
   useEffect(() => {
@@ -172,7 +195,7 @@ export default function App() {
         .toLowerCase();
 
       if (suppressWakeWordRef.current) return;
-      if (transcript.includes("hey commuter") && !voiceState.busy) {
+      if (transcript.includes("hey commuter") && !voiceBusyRef.current && !voiceInteractionLockRef.current) {
         suppressWakeWordRef.current = true;
         setMode("voice");
         handleVoiceTrigger({ source: "wake-word" });
@@ -210,7 +233,15 @@ export default function App() {
 
   const handleVoiceTrigger = async ({ source = "manual" } = {}) => {
     try {
-      if (voiceState.busy || navigationState.isNavigating) return;
+      if (
+        voiceInteractionLockRef.current ||
+        voiceBusyRef.current ||
+        voicePlaybackActiveRef.current ||
+        navigationStateRef.current.isNavigating
+      ) {
+        return;
+      }
+      voiceInteractionLockRef.current = true;
       if (source !== "manual" && mode !== "voice") setMode("voice");
 
       const currentConversation = voiceConversationRef.current;
@@ -287,6 +318,8 @@ export default function App() {
         pendingNavigationStartRef.current = null;
       }
     } catch {
+      voiceInteractionLockRef.current = false;
+      setVoicePlaybackActive(false);
       setVoiceState({
         busy: false,
         transcript: "",
@@ -333,6 +366,7 @@ export default function App() {
             voiceConversation={voiceConversation}
             voiceChatMessages={voiceChatMessages}
             isNavigating={navigationState.isNavigating}
+            voicePlaybackActive={voicePlaybackActive}
             onVoiceTrigger={handleVoiceTrigger}
             devToolsOpen={devToolsOpen}
             onToggleDevTools={() => setDevToolsOpen((current) => !current)}
@@ -345,7 +379,7 @@ export default function App() {
         </div>
         <MobileBottomBar
           message={voiceState.message}
-          voiceBusy={voiceState.busy}
+          voiceBusy={voiceState.busy || voicePlaybackActive}
           onMicClick={() => {
             setMode("voice");
             handleVoiceTrigger({ source: "mobile-mic" });
