@@ -2,19 +2,13 @@ import { Clock, MapPin, Navigation, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export function TripInfoCard({
-  initialSeconds = 1260, // e.g. 21 minutes
+  instruction = "Calculating...",
+  progress = 0, // 0 to 100
+  initialSeconds = 1260,
   distance = 12.4,
   destination = "Downtown",
   onStop
 }) {
-  const [secondsRemaining, setSecondsRemaining] = useState(initialSeconds);
-
-  useEffect(() => {
-    // Just sync the initial seconds provided by the route API.
-    // In a real app with live location, the API would re-poll and update initialSeconds,
-    // which then updates this state naturally based on distance remaining.
-    setSecondsRemaining(initialSeconds);
-  }, [initialSeconds]);
 
 
   const formatTime = (seconds) => {
@@ -67,20 +61,22 @@ export function TripInfoCard({
           </div>
         </div>
 
-        {/* Main Timer */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-          <Clock size={16} style={{ color: '#4effa0' }} />
+        {/* Main Instruction */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 2, justifyContent: 'flex-end' }}>
+          <Navigation size={18} style={{ color: '#4effa0', flexShrink: 0 }} />
           <div 
             style={{ 
-              fontSize: '1.875rem', 
+              fontSize: '1.2rem', 
               fontWeight: 'bold', 
-              fontVariantNumeric: 'tabular-nums', 
-              letterSpacing: '-0.025em',
               color: '#5ee7ff',
-              textShadow: '0 0 20px rgba(94, 231, 255, 0.3)'
+              textShadow: '0 0 15px rgba(94, 231, 255, 0.2)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              textAlign: 'right'
             }}
           >
-            {formatTime(secondsRemaining)}
+            {instruction}
           </div>
           <button 
             onClick={onStop}
@@ -114,8 +110,7 @@ export function TripInfoCard({
           style={{ 
             height: '100%', 
             borderRadius: '9999px', 
-            transition: 'all 1s linear',
-            width: `${Math.max(0, 100 - (secondsRemaining / initialSeconds) * 100)}%`,
+            width: `${Math.min(100, Math.max(0, progress))}%`,
             backgroundColor: '#4effa0',
             boxShadow: '0 0 10px rgba(78, 255, 160, 0.5)'
           }}
@@ -146,7 +141,7 @@ export function TripInfoCard({
             ETA
           </span>
           <span style={{ fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', color: 'rgba(255, 255, 255, 1.0)' }}>
-            {formatETA(secondsRemaining)}
+            {formatETA(initialSeconds)}
           </span>
         </div>
 
