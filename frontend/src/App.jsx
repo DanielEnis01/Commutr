@@ -98,21 +98,32 @@ export default function App() {
 
   const startVoicePrompt = async () => {
     const greeting = "Hey, how can I help you find the best parking to get to class today? Tell me what building you are going to.";
-    appendChatMessage("assistant", greeting);
+    voiceBusyRef.current = true;
     setVoiceState((current) => ({
       ...current,
-      message: greeting,
+      busy: true,
+      transcript: "",
+      message: "Starting voice guidance",
     }));
+    appendChatMessage("assistant", greeting);
 
     try {
       const response = await speakText(greeting);
+      voiceBusyRef.current = false;
+      setVoiceState((current) => ({
+        ...current,
+        busy: false,
+        message: greeting,
+      }));
       playAudioPayload(response.audio_base64, response.mime_type, {
         autoListenAfterAudio: true,
       });
     } catch {
       voiceInteractionLockRef.current = false;
+      voiceBusyRef.current = false;
       setVoiceState((current) => ({
         ...current,
+        busy: false,
         message: greeting,
       }));
     }
@@ -138,6 +149,7 @@ export default function App() {
     const finishAudio = () => {
       if (finished) return;
       finished = true;
+      voicePlaybackActiveRef.current = false;
       setVoicePlaybackActive(false);
       voiceInteractionLockRef.current = false;
       suppressWakeWordRef.current = false;
@@ -152,7 +164,6 @@ export default function App() {
         shouldAutoListen &&
         modeRef.current === "voice" &&
         !voiceBusyRef.current &&
-        !voicePlaybackActiveRef.current &&
         !navigationStateRef.current.isNavigating
       ) {
         window.setTimeout(() => {
@@ -250,6 +261,7 @@ export default function App() {
         return;
       }
       const awaitingConfirmation = Boolean(currentConversation?.awaiting_confirmation);
+      voiceBusyRef.current = true;
       setVoiceState((current) => ({
         ...current,
         busy: true,
@@ -290,6 +302,7 @@ export default function App() {
       };
       setVoiceConversation(nextConversation);
       voiceConversationRef.current = nextConversation;
+      voiceBusyRef.current = false;
       setVoiceState({
         busy: false,
         transcript: response.transcript || "",
@@ -319,6 +332,7 @@ export default function App() {
       }
     } catch {
       voiceInteractionLockRef.current = false;
+      voiceBusyRef.current = false;
       setVoicePlaybackActive(false);
       setVoiceState({
         busy: false,
@@ -357,7 +371,7 @@ export default function App() {
           />
         </div>
         <div className="sidebar-container">
-          <SidePanel
+            <SidePanel
             mode={mode}
             onModeChange={setMode}
             onNavigateToLot={(lotId) => setNavigationRequest({ lotId, autoStart: false, id: Date.now() })}
@@ -367,7 +381,7 @@ export default function App() {
             voiceChatMessages={voiceChatMessages}
             isNavigating={navigationState.isNavigating}
             voicePlaybackActive={voicePlaybackActive}
-            onVoiceTrigger={handleVoiceTrigger}
+            onVoiceTrigger={() => handleVoiceTrigger({ source: "manual" })}
             devToolsOpen={devToolsOpen}
             onToggleDevTools={() => setDevToolsOpen((current) => !current)}
             selectedPermit={selectedPermit}
