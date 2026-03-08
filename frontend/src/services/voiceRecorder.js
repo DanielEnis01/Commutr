@@ -10,6 +10,8 @@ function blobToBase64(blob) {
   });
 }
 
+let sharedMicStreamPromise = null;
+
 function getPreferredMimeType() {
   if (typeof MediaRecorder === "undefined") {
     return "";
@@ -83,8 +85,24 @@ export async function ensureMicrophoneAccess() {
     throw new Error("Microphone access is not supported on this device");
   }
 
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  stream.getTracks().forEach((track) => track.stop());
+  if (!sharedMicStreamPromise) {
+    sharedMicStreamPromise = navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+  }
+
+  return sharedMicStreamPromise;
+}
+
+export async function releaseMicrophoneAccess() {
+  if (!sharedMicStreamPromise) return;
+  const stream = await sharedMicStreamPromise.catch(() => null);
+  stream?.getTracks().forEach((track) => track.stop());
+  sharedMicStreamPromise = null;
 }
 
 async function recordVoiceClipWithMediaRecorder(stream, durationMs) {
@@ -157,7 +175,6 @@ async function recordVoiceClipWithWav(stream, durationMs) {
       processor.disconnect();
       source.disconnect();
       gain.disconnect();
-      stream.getTracks().forEach((track) => track.stop());
       try {
         await audioContext.close();
       } catch {
@@ -188,25 +205,18 @@ async function recordVoiceClipWithWav(stream, durationMs) {
 }
 
 export async function recordVoiceClip(durationMs = 3200) {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error("Microphone access is not supported on this device");
-  }
-
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const stream = await ensureMicrophoneAccess();
 
   try {
     if (typeof MediaRecorder !== "undefined") {
       const result = await recordVoiceClipWithMediaRecorder(stream, durationMs);
-      stream.getTracks().forEach((track) => track.stop());
       return result;
     }
   } catch (error) {
-    stream.getTracks().forEach((track) => track.stop());
     if (!(window.AudioContext || window.webkitAudioContext)) {
       throw error;
     }
   }
 
-  const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  return recordVoiceClipWithWav(fallbackStream, durationMs);
+  return recordVoiceClipWithWav(stream, durationMs);
 }

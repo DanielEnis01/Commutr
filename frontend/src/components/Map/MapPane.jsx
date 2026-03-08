@@ -59,6 +59,94 @@ const SIMULATED_AVAILABLE_SPOTS = {
   s: 16,
 };
 
+function toLiteral(point) {
+  if (!point) return null;
+  return typeof point.lat === "function"
+    ? { lat: point.lat(), lng: point.lng() }
+    : { lat: point.lat, lng: point.lng };
+}
+
+function flattenRoutePath(steps = []) {
+  const flattened = [];
+  steps.forEach((step) => {
+    (step.path || []).forEach((point) => {
+      const literal = toLiteral(point);
+      if (!literal) return;
+      const previous = flattened[flattened.length - 1];
+      if (!previous || previous.lat !== literal.lat || previous.lng !== literal.lng) {
+        flattened.push(literal);
+      }
+    });
+  });
+  return flattened;
+}
+
+function projectPointToSegment(point, start, end) {
+  const startToEndLat = end.lat - start.lat;
+  const startToEndLng = end.lng - start.lng;
+  const segmentLengthSquared = (startToEndLat ** 2) + (startToEndLng ** 2);
+
+  if (!segmentLengthSquared) {
+    return { point: start, t: 0 };
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      (((point.lat - start.lat) * startToEndLat) + ((point.lng - start.lng) * startToEndLng)) / segmentLengthSquared
+    )
+  );
+
+  return {
+    point: {
+      lat: start.lat + (startToEndLat * t),
+      lng: start.lng + (startToEndLng * t),
+    },
+    t,
+  };
+}
+
+function findNearestPointOnPath(geometryLib, point, path = []) {
+  if (!geometryLib || !point || path.length < 2) return null;
+
+  let bestMatch = null;
+  let traversedDistance = 0;
+
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const start = path[index];
+    const end = path[index + 1];
+    const segmentDistance = geometryLib.spherical.computeDistanceBetween(start, end);
+    const projection = projectPointToSegment(point, start, end);
+    const distanceToProjection = geometryLib.spherical.computeDistanceBetween(point, projection.point);
+
+    if (!bestMatch || distanceToProjection < bestMatch.distanceToRoute) {
+      bestMatch = {
+        point: projection.point,
+        index,
+        segmentProgress: projection.t,
+        distanceToRoute: distanceToProjection,
+        distanceAlongRoute: traversedDistance + (segmentDistance * projection.t),
+        segmentDistance,
+      };
+    }
+
+    traversedDistance += segmentDistance;
+  }
+
+  return bestMatch;
+}
+
+function splitPathAtMatch(path, match) {
+  if (!match || path.length < 2) {
+    return { traveledPath: [], remainingPath: path };
+  }
+
+  const traveledPath = [...path.slice(0, match.index + 1), match.point];
+  const remainingPath = [match.point, ...path.slice(match.index + 1)];
+  return { traveledPath, remainingPath };
+}
+
 function navigationReducer(state, action) {
   switch (action.type) {
     case "select_lot":
@@ -89,7 +177,7 @@ function navigationReducer(state, action) {
   }
 }
 
-function LiveUserTracker({ isNavigating, onLocationUpdate }) {
+function LiveUserTracker({ isNavigating, trackedLocation, onLocationUpdate }) {
   const map = useMap();
   const geometryLib = useMapsLibrary("geometry");
   const markerRef = useRef(null);
@@ -122,6 +210,13 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
       if (markerRef.current) markerRef.current.setMap(null);
     };
   }, [map]);
+
+  useEffect(() => {
+    if (!markerRef.current) return;
+    if (trackedLocation) {
+      markerRef.current.setPosition(trackedLocation);
+    }
+  }, [trackedLocation]);
 
   useEffect(() => {
     if (!markerRef.current) return;
@@ -168,10 +263,6 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
         return;
       }
 
-      if (markerRef.current) {
-        markerRef.current.setPosition(newPos);
-      }
-
       if (map && (!hasCenteredOnUserRef.current || isNavigating)) {
         map.panTo(newPos);
         map.setZoom(isNavigating ? 19 : 17);
@@ -215,8 +306,6 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
         }
 
         if (markerRef.current) {
-          markerRef.current.setPosition(newPos);
-
           let heading = markerRef.current.getIcon()?.rotation || 0;
           if (pos.coords.heading !== null && (!isNaN(pos.coords.heading)) && pos.coords.heading !== 0) {
             heading = pos.coords.heading;
@@ -231,7 +320,7 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
              const icon = markerRef.current.getIcon();
              icon.rotation = heading;
              markerRef.current.setIcon(icon);
-             if (map) map.panTo(newPos);
+             if (map) map.panTo(trackedLocation || newPos);
           }
         }
 
@@ -244,7 +333,7 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [map, geometryLib, isNavigating]);
+  }, [map, geometryLib, isNavigating, trackedLocation]);
 
   return null;
 }
@@ -311,8 +400,10 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
   const map = useMap();
   const routesLib = useMapsLibrary("routes");
   const geometryLib = useMapsLibrary("geometry");
-  const polylinesRef = useRef([]);
+  const traveledPolylineRef = useRef(null);
+  const remainingPolylineRef = useRef(null);
   const segmentsRef = useRef([]);
+  const routePathRef = useRef([]);
   const entireDistanceRef = useRef(1);
   const baseDurationRef = useRef({ val: 0, text: "" });
   const originRef = useRef(origin);
@@ -333,9 +424,12 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
   useEffect(() => {
     if (!routesLib || !map || !destination || !geometryLib) {
-      polylinesRef.current.forEach((p) => p.setMap(null));
-      polylinesRef.current = [];
+      if (traveledPolylineRef.current) traveledPolylineRef.current.setMap(null);
+      if (remainingPolylineRef.current) remainingPolylineRef.current.setMap(null);
+      traveledPolylineRef.current = null;
+      remainingPolylineRef.current = null;
       segmentsRef.current = [];
+      routePathRef.current = [];
       if (!destination && routeInfoRef.current) routeInfoRef.current(null);
       if (!navigatingRef.current && map) {
         map.setZoom(15.5);
@@ -356,8 +450,10 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
       (response, status) => {
         if (status !== "OK" || !response.routes || response.routes.length === 0) return;
 
-        polylinesRef.current.forEach((p) => p.setMap(null));
-        polylinesRef.current = [];
+        if (traveledPolylineRef.current) traveledPolylineRef.current.setMap(null);
+        if (remainingPolylineRef.current) remainingPolylineRef.current.setMap(null);
+        traveledPolylineRef.current = null;
+        remainingPolylineRef.current = null;
 
         let fastestRoute = response.routes[0];
         let minDuration = Infinity;
@@ -373,7 +469,6 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
         const route = fastestRoute;
         const leg = route.legs[0];
-        const newLines = [];
         const segments = [];
 
         entireDistanceRef.current = leg.distance.value;
@@ -388,29 +483,24 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
             instruction: step.instructions.replace(/<[^>]*>?/gm, '')
           });
 
-          const speed = step.distance.value / step.duration.value;
-          const isTraffic = speed < 5;
-          const color = isTraffic ? "#4effa0" : "#5ee7ff";
-
-          newLines.push(
-            new window.google.maps.Polyline({
-              path: step.path,
-              strokeColor: color,
-              strokeOpacity: 0.15, 
-              strokeWeight: 8,     
-              map,
-            }),
-            new window.google.maps.Polyline({
-              path: step.path,
-              strokeColor: color,
-              strokeOpacity: 0.8,  
-              strokeWeight: 4,
-              map,
-            })
-          );
         });
-        polylinesRef.current = newLines;
         segmentsRef.current = segments;
+        routePathRef.current = flattenRoutePath(leg.steps);
+
+        traveledPolylineRef.current = new window.google.maps.Polyline({
+          path: [],
+          strokeColor: "#24404d",
+          strokeOpacity: 0.85,
+          strokeWeight: 6,
+          map,
+        });
+        remainingPolylineRef.current = new window.google.maps.Polyline({
+          path: routePathRef.current,
+          strokeColor: "#5ee7ff",
+          strokeOpacity: 0.95,
+          strokeWeight: 6,
+          map,
+        });
 
         if (!navigatingRef.current) {
           map.fitBounds(route.bounds);
@@ -422,20 +512,23 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
         if (routeInfoRef.current) {
           const firstInstruction = segments[0]?.instruction || "Head to the route";
+          const initialMatch = findNearestPointOnPath(geometryLib, originRef.current, routePathRef.current);
           routeInfoRef.current({
             distanceText: leg.distance.text,
             distanceValue: leg.distance.value,
             durationSeconds: baseDurationRef.current.val,
             durationText: baseDurationRef.current.text,
             instruction: firstInstruction,
-            progress: 0
+            progress: 0,
+            snappedLocation: initialMatch?.point || null,
           });
         }
       }
     );
 
     return () => {
-      polylinesRef.current.forEach((p) => p.setMap(null));
+      if (traveledPolylineRef.current) traveledPolylineRef.current.setMap(null);
+      if (remainingPolylineRef.current) remainingPolylineRef.current.setMap(null);
     };
   }, [routesLib, geometryLib, map, destination]);
 
@@ -444,6 +537,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
      let closestDist = Infinity;
      let currentInstruction = segmentsRef.current[0].instruction;
+     const nearestMatch = findNearestPointOnPath(geometryLib, origin, routePathRef.current);
      
      segmentsRef.current.forEach(seg => {
         for (let i = 0; i < seg.path.length; i += 3) { 
@@ -456,9 +550,18 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
         }
      });
 
-     const distRemaining = geometryLib.spherical.computeDistanceBetween(origin, { lat: destination.lat, lng: destination.lng });
-     let progress = 100 - ((distRemaining / Math.max(1, entireDistanceRef.current)) * 100);
+     const referencePoint = nearestMatch?.point || origin;
+     const distRemaining = geometryLib.spherical.computeDistanceBetween(referencePoint, { lat: destination.lat, lng: destination.lng });
+     let progress = nearestMatch
+       ? (nearestMatch.distanceAlongRoute / Math.max(1, entireDistanceRef.current)) * 100
+       : 100 - ((distRemaining / Math.max(1, entireDistanceRef.current)) * 100);
      progress = Math.max(0, Math.min(100, progress));
+
+     if (nearestMatch && traveledPolylineRef.current && remainingPolylineRef.current) {
+        const { traveledPath, remainingPath } = splitPathAtMatch(routePathRef.current, nearestMatch);
+        traveledPolylineRef.current.setPath(traveledPath);
+        remainingPolylineRef.current.setPath(remainingPath);
+     }
 
      if (routeInfoRef.current) {
         routeInfoRef.current({
@@ -467,7 +570,8 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
             durationSeconds: baseDurationRef.current.val,
             durationText: baseDurationRef.current.text,
             instruction: currentInstruction,
-            progress: progress
+            progress: progress,
+            snappedLocation: nearestMatch?.point || null,
         });
      }
   }, [origin, isNavigating, geometryLib, destination]);
@@ -498,6 +602,7 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
     isNavigating: false,
   });
   const [liveLocation, setLiveLocation] = useState(USER_LOCATION);
+  const [snappedLocation, setSnappedLocation] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const onNavigationStartedRef = useRef(onNavigationStarted);
   const selectedLot = UTD_LOTS.find((lot) => lot.id === navState.selectedLotId) || null;
@@ -533,14 +638,20 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
   useEffect(() => {
     if (!isNavigating || !selectedLot) return;
     const distanceMeters = window.google?.maps?.geometry?.spherical?.computeDistanceBetween?.(
-      liveLocation,
+      snappedLocation || liveLocation,
       { lat: selectedLot.lat, lng: selectedLot.lng }
     );
 
     if (typeof distanceMeters === "number" && distanceMeters <= ARRIVAL_THRESHOLD_METERS) {
       dispatch({ type: "clear_navigation" });
     }
-  }, [isNavigating, liveLocation, selectedLot]);
+  }, [isNavigating, liveLocation, snappedLocation, selectedLot]);
+
+  useEffect(() => {
+    if (!isNavigating) {
+      setSnappedLocation(null);
+    }
+  }, [isNavigating]);
 
   const handleSelectLot = (lot) => {
     if (isNavigating) return;
@@ -563,15 +674,32 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
         onTilesLoaded={() => setMapLoaded(true)}
         onIdle={() => setMapLoaded(true)}
       >
-        <LiveUserTracker isNavigating={isNavigating} onLocationUpdate={setLiveLocation} />
+        <LiveUserTracker
+          isNavigating={isNavigating}
+          trackedLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation}
+          onLocationUpdate={setLiveLocation}
+        />
         <LotMarkers onSelectLot={handleSelectLot} selectedLotId={selectedLot?.id} isNavigating={isNavigating} />
         <RouteOverlay
           origin={liveLocation}
           destination={selectedLot}
-          onRouteInfo={(nextRouteInfo) => dispatch({ type: "set_route_info", routeInfo: nextRouteInfo })}
+          onRouteInfo={(nextRouteInfo) => {
+            if (nextRouteInfo?.snappedLocation) {
+              setSnappedLocation(nextRouteInfo.snappedLocation);
+            }
+            dispatch({
+              type: "set_route_info",
+              routeInfo: nextRouteInfo
+                ? {
+                    ...nextRouteInfo,
+                    snappedLocation: undefined,
+                  }
+                : nextRouteInfo,
+            });
+          }}
           isNavigating={isNavigating}
         />
-        <RecenterControl liveLocation={liveLocation} isNavigating={isNavigating} />
+        <RecenterControl liveLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation} isNavigating={isNavigating} />
       </Map>
 
       {!mapLoaded && (

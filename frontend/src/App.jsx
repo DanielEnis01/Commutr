@@ -5,7 +5,7 @@ import MapPane from "./components/Map/MapPane";
 import SidePanel from "./components/Panel/SidePanel";
 import MobileBottomBar from "./components/Panel/MobileBottomBar";
 import { speakText, submitVoiceChat } from "./services/api";
-import { ensureMicrophoneAccess, recordVoiceClip } from "./services/voiceRecorder";
+import { ensureMicrophoneAccess, recordVoiceClip, releaseMicrophoneAccess } from "./services/voiceRecorder";
 
 export default function App() {
   const [selectedPermit, setSelectedPermit] = useState(null);
@@ -91,7 +91,10 @@ export default function App() {
     lastSpokenInstructionRef.current = "";
     voiceInteractionLockRef.current = false;
     setVoicePlaybackActive(false);
+    releaseMicrophoneAccess().catch(() => {});
     if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
       audioRef.current.pause();
       audioRef.current = null;
     }
@@ -137,6 +140,8 @@ export default function App() {
       return;
     }
     if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
       audioRef.current.pause();
       audioRef.current = null;
     }
@@ -169,14 +174,14 @@ export default function App() {
       ) {
         window.setTimeout(() => {
           handleVoiceTrigger({ source: "handsfree" });
-        }, 250);
+        }, 650);
       }
     };
 
     audio.onended = () => {
       finishAudio();
     };
-    audio.onpause = () => {
+    audio.onerror = () => {
       finishAudio();
     };
     audio.play().catch(() => {
@@ -187,6 +192,7 @@ export default function App() {
   useEffect(() => {
     if (mode !== "voice") {
       autoListenAfterAudioRef.current = false;
+      releaseMicrophoneAccess().catch(() => {});
     }
   }, [mode]);
 
