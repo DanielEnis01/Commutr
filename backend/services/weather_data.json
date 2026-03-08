@@ -1,0 +1,22 @@
+{
+  "temperature": 46.78,
+  "feelsLike": 46.78,
+  "humidity": 91,
+  "windSpeed": 1.99,
+  "windGust": 3,
+  "visibility": 10000,
+  "precipitation": 0,
+  "conditions": [
+    {
+      "id": 800,
+      "main": "Clear",
+      "description": "clear sky",
+      "icon": "01n"
+    }
+  ],
+  "severe": false,
+  "severeConditions": [],
+  "rain": null,
+  "snow": null,
+  "timestamp": "3/8/2026, 1:18:53 AM"
+}
