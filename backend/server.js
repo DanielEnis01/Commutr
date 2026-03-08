@@ -7,11 +7,12 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const corsOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+  : true;
 
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
-
-// Routes
 app.use("/api", predictionsRouter);
 
 app.get("/api/health", (_req, res) => {

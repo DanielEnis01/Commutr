@@ -9,11 +9,13 @@ const chartData = [
   { label: "6p", height: 35, color: "rgba(78,255,160,0.4)" },
 ];
 
-export default function OccupancyChart() {
+export default function OccupancyChart({ lotName }) {
+  if (!lotName) return null;
+
   return (
     <div className="occupancy-chart">
       <div className="occupancy-chart-title">
-        Lot H — Predicted Occupancy Today
+        Lot {lotName} - Predicted Occupancy
       </div>
 
       <div className="chart-bars">
@@ -34,6 +36,7 @@ export default function OccupancyChart() {
           <div
             key={i}
             className={`chart-label ${bar.isCurrent ? "current" : ""}`}
+            style={{ color: bar.isCurrent ? "#4effa0" : undefined }}
           >
             {bar.label}
           </div>

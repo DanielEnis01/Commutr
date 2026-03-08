@@ -1,22 +1,13 @@
-import { Clock, MapPin, Navigation, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { MapPin, Navigation, X } from 'lucide-react';
 
 export function TripInfoCard({
   instruction = "Calculating...",
-  progress = 0, // 0 to 100
+  progress = 0,
   initialSeconds = 1260,
   distance = 12.4,
   destination = "Downtown",
   onStop
 }) {
-
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const formatETA = (seconds) => {
     const now = new Date();
     const eta = new Date(now.getTime() + seconds * 1000);
@@ -49,9 +40,7 @@ export function TripInfoCard({
         fontFamily: 'inherit'
       }}
     >
-      {/* Top row - Destination and timer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.5rem' }}>
-        {/* Destination */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
           <MapPin size={16} style={{ color: '#5ee7ff', flexShrink: 0 }} />
           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -61,7 +50,6 @@ export function TripInfoCard({
           </div>
         </div>
 
-        {/* Main Instruction */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 2, justifyContent: 'flex-end' }}>
           <Navigation size={18} style={{ color: '#4effa0', flexShrink: 0 }} />
           <div 
@@ -96,7 +84,6 @@ export function TripInfoCard({
         </div>
       </div>
 
-      {/* Progress Bar */}
       <div 
         style={{ 
           height: '0.25rem', 
@@ -117,9 +104,7 @@ export function TripInfoCard({
         />
       </div>
 
-      {/* Bottom row - Stats */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-        {/* Distance */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Navigation size={14} style={{ color: '#5ee7ff' }} />
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
@@ -132,10 +117,8 @@ export function TripInfoCard({
           </div>
         </div>
 
-        {/* Divider */}
         <div style={{ width: '1px', height: '1rem', backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
 
-        {/* ETA */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
           <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.025em', color: 'rgba(255, 255, 255, 0.35)' }}>
             ETA
@@ -145,14 +128,11 @@ export function TripInfoCard({
           </span>
         </div>
 
-        {/* Divider */}
         <div style={{ width: '1px', height: '1rem', backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
 
-        {/* Active indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
           <div style={{ position: 'relative' }}>
             <div style={{ width: '0.375rem', height: '0.375rem', borderRadius: '9999px', backgroundColor: '#4effa0' }} />
-            {/* The ping animation requires CSS, we can just omit or use a simple dot */}
           </div>
           <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.35)' }}>
             Active

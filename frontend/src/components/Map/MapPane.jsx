@@ -1,7 +1,7 @@
 import { LocationPanel } from "../Panel/LocationPanel";
 import { TripInfoCard } from "../Panel/TripInfoCard";
 import { Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import mapStyles from "./mapStyles";
 
 const UTD_BOUNDS = {
@@ -14,11 +14,8 @@ const UTD_BOUNDS = {
 const UTD_LOTS = [
   { id: "h", name: "Lot H", lat: 32.9877704179372, lng: -96.75304011186817, vacant: true },
   { id: "j", name: "Lot J", lat: 32.9844444, lng: -96.7505000, vacant: false },
-  { id: "f", name: "Lot F", lat: 32.98427893827442, lng: -96.7492802996869, vacant: true },
   { id: "u", name: "Lot U", lat: 32.98116297383819, lng: -96.75088334404406, vacant: true },
-  { id: "m_west", name: "Lot M West", lat: 32.983489026369895, lng: -96.74735246161505, vacant: false },
-  { id: "m_east", name: "Lot M East", lat: 32.983489026369895, lng: -96.74629258064449, vacant: false },
-  { id: "m_south", name: "Lot M South", lat: 32.98238286682215, lng: -96.74706900507641, vacant: true },
+  { id: "m", name: "Lot M", lat: 32.983489026369895, lng: -96.74629258064449, vacant: false },
   { id: "d", name: "Lot D", lat: 32.98696517899782, lng: -96.74450785086178, vacant: true },
   { id: "c1", name: "Lot C1", lat: 32.98752504401622, lng: -96.74496631239154, vacant: false },
   { id: "c2", name: "Lot C2", lat: 32.98815276723842, lng: -96.74409658390128, vacant: true },
@@ -28,14 +25,60 @@ const UTD_LOTS = [
   { id: "a1", name: "Lot A1", lat: 32.98951911985273, lng: -96.74642932628002, vacant: false },
   { id: "i", name: "Lot I", lat: 32.98659386421271, lng: -96.75312524282663, vacant: true },
   { id: "t", name: "Lot T", lat: 32.99238737492741, lng: -96.7525346316642, vacant: false },
-  { id: "t_over", name: "T Overflow", lat: 32.99229501759602, lng: -96.75552772873479, vacant: true },
   { id: "p", name: "Lot P", lat: 32.99096841980464, lng: -96.7501821975309, vacant: true },
   { id: "n", name: "Lot N", lat: 32.9926392580778, lng: -96.7483002502807, vacant: false },
-  { id: "r", name: "Lot R", lat: 32.990206992297985, lng: -96.7481333878544, vacant: true },
   { id: "s", name: "Lot S", lat: 32.99258285446397, lng: -96.74749391907277, vacant: false },
 ];
 
 const USER_LOCATION = { lat: 32.9805, lng: -96.7505 };
+const SIMULATED_AVAILABLE_SPOTS = {
+  h: 41,
+  j: 18,
+  u: 63,
+  m: 27,
+  d: 36,
+  c1: 24,
+  c2: 29,
+  b2: 57,
+  b1: 21,
+  a2: 72,
+  a1: 12,
+  i: 19,
+  t: 45,
+  p: 14,
+  n: 8,
+  s: 16,
+};
+
+function navigationReducer(state, action) {
+  switch (action.type) {
+    case "select_lot":
+      return {
+        ...state,
+        selectedLotId: action.lotId,
+        isNavigating: false,
+        routeInfo: null,
+      };
+    case "start_navigation":
+      return {
+        ...state,
+        isNavigating: true,
+      };
+    case "set_route_info":
+      return {
+        ...state,
+        routeInfo: action.routeInfo,
+      };
+    case "clear_navigation":
+      return {
+        selectedLotId: null,
+        routeInfo: null,
+        isNavigating: false,
+      };
+    default:
+      return state;
+  }
+}
 
 function LiveUserTracker({ isNavigating, onLocationUpdate }) {
   const map = useMap();
@@ -89,8 +132,7 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
 
   useEffect(() => {
     if (!navigator.geolocation || !markerRef.current) return;
-    
-    // Quick initial ping
+
     navigator.geolocation.getCurrentPosition((pos) => {
        const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
        lastPosRef.current = newPos;
@@ -139,6 +181,11 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
 function LotMarkers({ onSelectLot, selectedLotId, isNavigating }) {
   const map = useMap();
   const markersRef = useRef([]);
+  const onSelectLotRef = useRef(onSelectLot);
+
+  useEffect(() => {
+    onSelectLotRef.current = onSelectLot;
+  }, [onSelectLot]);
 
   useEffect(() => {
     if (!map) return;
@@ -147,13 +194,12 @@ function LotMarkers({ onSelectLot, selectedLotId, isNavigating }) {
     markersRef.current = [];
 
     UTD_LOTS.forEach((lot) => {
-      // Hide other lots when actively navigating
       if (isNavigating && selectedLotId !== lot.id) return;
 
       const isVacant = lot.vacant;
-      const svgColor = "%2300d0ff";       // All lots get the cyan stroke
-      const svgShadow = isVacant ? "%2300d0ff" : "%23005a70"; // Non-vacant get a darker cyan shadow
-      const svgFill = "%230d0f1a";        // Base dark map color
+      const svgColor = "%2300d0ff";
+      const svgShadow = isVacant ? "%2300d0ff" : "%23005a70";
+      const svgFill = "%230d0f1a";
       
       const pinSvg = `data:image/svg+xml;charset=UTF-8,%3Csvg width='48' height='64' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 64'%3E%3Cellipse cx='24' cy='60' rx='16' ry='4' fill='${svgShadow}' /%3E%3Cpath d='M24 58 C8 40 4 30 4 22 A20 20 0 1 1 44 22 C44 30 40 40 24 58 Z' fill='${svgFill}' stroke='${svgColor}' stroke-width='3' /%3E%3Ccircle cx='24' cy='22' r='8' fill='none' stroke='${svgColor}' stroke-width='1.5' opacity='0.6' /%3E%3Ccircle cx='24' cy='22' r='13' fill='none' stroke='${svgColor}' stroke-width='0.5' opacity='0.4' /%3E%3C/svg%3E`;
 
@@ -178,7 +224,7 @@ function LotMarkers({ onSelectLot, selectedLotId, isNavigating }) {
         },
       });
 
-      marker.addListener("click", () => onSelectLot(lot));
+      marker.addListener("click", () => onSelectLotRef.current(lot));
       markersRef.current.push(marker);
     });
 
@@ -198,15 +244,29 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
   const segmentsRef = useRef([]);
   const entireDistanceRef = useRef(1);
   const baseDurationRef = useRef({ val: 0, text: "" });
+  const originRef = useRef(origin);
+  const navigatingRef = useRef(isNavigating);
+  const routeInfoRef = useRef(onRouteInfo);
+
+  useEffect(() => {
+    originRef.current = origin;
+  }, [origin]);
+
+  useEffect(() => {
+    navigatingRef.current = isNavigating;
+  }, [isNavigating]);
+
+  useEffect(() => {
+    routeInfoRef.current = onRouteInfo;
+  }, [onRouteInfo]);
 
   useEffect(() => {
     if (!routesLib || !map || !destination || !geometryLib) {
       polylinesRef.current.forEach((p) => p.setMap(null));
       polylinesRef.current = [];
       segmentsRef.current = [];
-      if (!destination && onRouteInfo) onRouteInfo(null);
-      // Reset map zoom when route clears
-      if (!isNavigating && map) {
+      if (!destination && routeInfoRef.current) routeInfoRef.current(null);
+      if (!navigatingRef.current && map) {
         map.setZoom(15.5);
         map.panTo({ lat: 32.986, lng: -96.750 });
       }
@@ -216,7 +276,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
     const svc = new routesLib.DirectionsService();
     svc.route(
       {
-        origin: origin,
+        origin: originRef.current,
         destination: { lat: destination.lat, lng: destination.lng },
         travelMode: window.google.maps.TravelMode.DRIVING,
         provideRouteAlternatives: true,
@@ -227,8 +287,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
         polylinesRef.current.forEach((p) => p.setMap(null));
         polylinesRef.current = [];
-        
-        // Find the absolute fastest route among alternatives based on live traffic
+
         let fastestRoute = response.routes[0];
         let minDuration = Infinity;
 
@@ -260,7 +319,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
           const speed = step.distance.value / step.duration.value;
           const isTraffic = speed < 5;
-          const color = isTraffic ? "#4effa0" : "#5ee7ff"; // Mint green for traffic, Cyan for normal
+          const color = isTraffic ? "#4effa0" : "#5ee7ff";
 
           newLines.push(
             new window.google.maps.Polyline({
@@ -282,14 +341,13 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
         polylinesRef.current = newLines;
         segmentsRef.current = segments;
 
-        if (!isNavigating) {
-           // PREVIEW MODE: Zoom map to show entire route
+        if (!navigatingRef.current) {
            map.fitBounds(route.bounds);
            const isMobile = window.innerWidth <= 768;
            map.panBy(0, isMobile ? -120 : 50); 
 
-           if (onRouteInfo) {
-             onRouteInfo({
+           if (routeInfoRef.current) {
+             routeInfoRef.current({
                distanceText: leg.distance.text,
                distanceValue: leg.distance.value,
                durationSeconds: baseDurationRef.current.val,
@@ -299,7 +357,6 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
              });
            }
         } else {
-           // ACTIVE NAVIGATION MODE
            map.setZoom(19);
         }
       }
@@ -308,9 +365,8 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
     return () => {
       polylinesRef.current.forEach((p) => p.setMap(null));
     };
-  }, [routesLib, geometryLib, map, destination]); // Excluding "origin" and "isNavigating" explicitly to prevent re-query loop.
+  }, [routesLib, geometryLib, map, destination]);
 
-  // Realtime tracker for Instruction & Progress Updates against physical geography
   useEffect(() => {
      if (!isNavigating || !geometryLib || segmentsRef.current.length === 0 || !destination) return;
 
@@ -318,7 +374,6 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
      let currentInstruction = segmentsRef.current[0].instruction;
      
      segmentsRef.current.forEach(seg => {
-        // Sample down polyline points for fast evaluation
         for (let i = 0; i < seg.path.length; i += 3) { 
            const pt = seg.path[i];
            const dist = geometryLib.spherical.computeDistanceBetween(origin, pt);
@@ -333,8 +388,8 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
      let progress = 100 - ((distRemaining / Math.max(1, entireDistanceRef.current)) * 100);
      progress = Math.max(0, Math.min(100, progress));
 
-     if (onRouteInfo) {
-        onRouteInfo({
+     if (routeInfoRef.current) {
+        routeInfoRef.current({
             distanceText: (distRemaining * 0.000621371).toFixed(1) + " mi",
             distanceValue: distRemaining,
             durationSeconds: baseDurationRef.current.val,
@@ -348,25 +403,40 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
   return null;
 }
 
-export default function MapPane() {
-  const [selectedLot, setSelectedLot] = useState(null);
-  const [routeInfo, setRouteInfo] = useState(null);
-  const [isNavigating, setIsNavigating] = useState(false);
+export default function MapPane({ navigateToLotId, onNavigationStarted }) {
+  const [navState, dispatch] = useReducer(navigationReducer, {
+    selectedLotId: null,
+    routeInfo: null,
+    isNavigating: false,
+  });
   const [liveLocation, setLiveLocation] = useState(USER_LOCATION);
+  const onNavigationStartedRef = useRef(onNavigationStarted);
+  const selectedLot = UTD_LOTS.find((lot) => lot.id === navState.selectedLotId) || null;
+  const { routeInfo, isNavigating } = navState;
+
+  useEffect(() => {
+    onNavigationStartedRef.current = onNavigationStarted;
+  }, [onNavigationStarted]);
+
+  useEffect(() => {
+    if (!navigateToLotId) return;
+    const lotIdLower = navigateToLotId.toLowerCase();
+    const matchId = lotIdLower === "m_east" ? "m" : lotIdLower;
+    const lot = UTD_LOTS.find(l => l.id === matchId);
+    if (lot) {
+      dispatch({ type: "select_lot", lotId: lot.id });
+    }
+    if (onNavigationStartedRef.current) onNavigationStartedRef.current();
+  }, [navigateToLotId]);
 
   const handleSelectLot = (lot) => {
-    // Prevent changing destination if currently navigating
     if (isNavigating) return;
     
-    setSelectedLot(lot);
-    setIsNavigating(false);
-    setRouteInfo(null); // Reset while calculating
+    dispatch({ type: "select_lot", lotId: lot.id });
   };
 
   const handleCancelLine = () => {
-    setSelectedLot(null);
-    setIsNavigating(false);
-    setRouteInfo(null);
+    dispatch({ type: "clear_navigation" });
   };
 
   return (
@@ -380,23 +450,26 @@ export default function MapPane() {
       >
         <LiveUserTracker isNavigating={isNavigating} onLocationUpdate={setLiveLocation} />
         <LotMarkers onSelectLot={handleSelectLot} selectedLotId={selectedLot?.id} isNavigating={isNavigating} />
-        <RouteOverlay origin={liveLocation} destination={selectedLot} onRouteInfo={setRouteInfo} isNavigating={isNavigating} />
+        <RouteOverlay
+          origin={liveLocation}
+          destination={selectedLot}
+          onRouteInfo={(nextRouteInfo) => dispatch({ type: "set_route_info", routeInfo: nextRouteInfo })}
+          isNavigating={isNavigating}
+        />
       </Map>
 
-      {/* Show LocationPanel (Journey Start) when a lot is selected but not yet navigating */}
       {selectedLot && !isNavigating && (
         <LocationPanel 
           locationName={selectedLot.name}
           address="UT-Dallas Campus"
           estimatedTime={routeInfo ? Math.round(routeInfo.durationSeconds / 60) : "--"}
           distance={routeInfo ? parseFloat(routeInfo.distanceText.replace(/[^\d.-]/g, '')) : 0}
-          availableSpots={selectedLot.vacant ? Math.floor(Math.random() * 20) + 15 : 0} // simulated live spots
-          onStartRoute={() => setIsNavigating(true)}
+          availableSpots={selectedLot.vacant ? (SIMULATED_AVAILABLE_SPOTS[selectedLot.id] || 0) : 0}
+          onStartRoute={() => dispatch({ type: "start_navigation" })}
           onCancel={handleCancelLine}
         />
       )}
 
-      {/* Show TripInfoCard (Navigation Panel) when actively navigating to the selected lot */}
       {selectedLot && isNavigating && routeInfo && (
         <TripInfoCard
           instruction={routeInfo.instruction}

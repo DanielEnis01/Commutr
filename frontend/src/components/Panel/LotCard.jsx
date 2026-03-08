@@ -2,8 +2,9 @@ import { Star } from "lucide-react";
 
 function getColorTier(occupancy) {
   if (occupancy < 40) return "green";
-  if (occupancy < 75) return "accent";
-  return "muted";
+  if (occupancy < 70) return "yellow";
+  if (occupancy < 85) return "orange";
+  return "red";
 }
 
 export default function LotCard({
@@ -34,7 +35,7 @@ export default function LotCard({
           )}
         </div>
         <div className="lot-detail">
-          {location} · {walkTime}
+          {location} - {walkTime}
         </div>
         <div className="lot-bar">
           <div

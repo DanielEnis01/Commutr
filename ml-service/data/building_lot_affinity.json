@@ -1,0 +1,102 @@
+{
+  "ECSW": {
+    "ranked": ["I","J","H","M_west","P"],
+    "weights": {"I":1.0,"J":0.6,"H":0.3,"M_west":0.1,"P":0.05},
+    "distances_m": {"I":157,"J":212,"H":228,"M_west":490,"P":550}
+  },
+  "Hoblitzelle": {
+    "ranked": ["I","H","J","P","R"],
+    "weights": {"I":1.0,"H":0.6,"J":0.3,"P":0.1,"R":0.05},
+    "distances_m": {"I":144,"H":148,"J":311,"P":456,"R":482}
+  },
+  "SLC": {
+    "ranked": ["H","R","P","I","A1"],
+    "weights": {"H":1.0,"R":0.6,"P":0.3,"I":0.1,"A1":0.05},
+    "distances_m": {"H":251,"R":308,"P":308,"I":310,"A1":399}
+  },
+  "Sciences": {
+    "ranked": ["H","P","R","I","A1"],
+    "weights": {"H":1.0,"P":0.6,"R":0.3,"I":0.1,"A1":0.05},
+    "distances_m": {"H":231,"P":271,"R":304,"I":312,"A1":417}
+  },
+  "Arts_and_Technology": {
+    "ranked": ["P","R","H","A1","T"],
+    "weights": {"P":1.0,"R":0.6,"H":0.3,"A1":0.1,"T":0.05},
+    "distances_m": {"P":180,"R":219,"H":314,"A1":356,"T":400}
+  },
+  "Lloyd_Berkner": {
+    "ranked": ["H","I","R","P","J"],
+    "weights": {"H":1.0,"I":0.6,"R":0.3,"P":0.1,"J":0.05},
+    "distances_m": {"H":230,"I":272,"R":353,"P":356,"J":370}
+  },
+  "ECSS": {
+    "ranked": ["J","I","H","M_west","R"],
+    "weights": {"J":1.0,"I":0.6,"H":0.3,"M_west":0.1,"R":0.05},
+    "distances_m": {"J":204,"I":233,"H":277,"M_west":437,"R":496}
+  },
+  "ECSN": {
+    "ranked": ["I","H","J","R","P"],
+    "weights": {"I":1.0,"H":0.6,"J":0.3,"R":0.1,"P":0.05},
+    "distances_m": {"I":250,"H":256,"J":277,"R":424,"P":448}
+  },
+  "SSA": {
+    "ranked": ["J","I","M_west","H","M_east"],
+    "weights": {"J":1.0,"I":0.6,"M_west":0.3,"H":0.1,"M_east":0.05},
+    "distances_m": {"J":211,"I":341,"M_west":358,"H":375,"M_east":422}
+  },
+  "McDermott": {
+    "ranked": ["C1","M_west","D","M_east","B1"],
+    "weights": {"C1":1.0,"M_west":0.6,"D":0.3,"M_east":0.1,"B1":0.05},
+    "distances_m": {"C1":287,"M_west":292,"D":298,"M_east":314,"B1":330}
+  },
+  "JSOM": {
+    "ranked": ["M_west","M_east","M_south","D","J"],
+    "weights": {"M_west":1.0,"M_east":0.6,"M_south":0.3,"D":0.1,"J":0.05},
+    "distances_m": {"M_west":165,"M_east":169,"M_south":283,"D":318,"J":340}
+  },
+  "Founders": {
+    "ranked": ["R","B1","A1","H","P"],
+    "weights": {"R":1.0,"B1":0.6,"A1":0.3,"H":0.1,"P":0.05},
+    "distances_m": {"R":294,"B1":331,"A1":333,"H":347,"P":366}
+  },
+  "Founders_North": {
+    "ranked": ["R","P","H","A1","B1"],
+    "weights": {"R":1.0,"P":0.6,"H":0.3,"A1":0.1,"B1":0.05},
+    "distances_m": {"R":267,"P":323,"H":329,"A1":330,"B1":340}
+  },
+  "Green_Hall": {
+    "ranked": ["A1","R","B1","A2","B2"],
+    "weights": {"A1":1.0,"R":0.6,"B1":0.3,"A2":0.1,"B2":0.05},
+    "distances_m": {"A1":157,"R":169,"B1":170,"A2":273,"B2":288}
+  },
+  "Academic_Center": {
+    "ranked": ["R","P","A1","B1","A2"],
+    "weights": {"R":1.0,"P":0.6,"A1":0.3,"B1":0.1,"A2":0.05},
+    "distances_m": {"R":184,"P":259,"A1":268,"B1":298,"A2":377}
+  },
+  "Administration": {
+    "ranked": ["R","P","A1","B1","A2"],
+    "weights": {"R":1.0,"P":0.6,"A1":0.3,"B1":0.1,"A2":0.05},
+    "distances_m": {"R":71,"P":201,"A1":206,"B1":268,"A2":296}
+  },
+  "Johnson": {
+    "ranked": ["R","P","A1","B1","H"],
+    "weights": {"R":1.0,"P":0.6,"A1":0.3,"B1":0.1,"H":0.05},
+    "distances_m": {"R":189,"P":265,"A1":270,"B1":298,"H":377}
+  },
+  "North_Lab": {
+    "ranked": ["R","P","N","A1","S"],
+    "weights": {"R":1.0,"P":0.6,"N":0.3,"A1":0.1,"S":0.05},
+    "distances_m": {"R":102,"P":115,"N":272,"A1":275,"S":299}
+  },
+  "Natural_Science_Research": {
+    "ranked": ["P","N","R","S","T"],
+    "weights": {"P":1.0,"N":0.6,"R":0.3,"S":0.1,"T":0.05},
+    "distances_m": {"P":68,"N":189,"R":208,"S":246,"T":277}
+  },
+  "Classroom_Building": {
+    "ranked": ["R","P","A1","B1","N"],
+    "weights": {"R":1.0,"P":0.6,"A1":0.3,"B1":0.1,"N":0.05},
+    "distances_m": {"R":123,"P":171,"A1":265,"B1":321,"N":346}
+  }
+}

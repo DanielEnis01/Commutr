@@ -13,16 +13,20 @@ export default function TabBar() {
 
   return (
     <div className="tab-bar">
-      {tabs.map(({ id, icon: Icon, label }) => (
-        <button
-          key={id}
-          className={`tab-btn ${active === id ? "active" : ""}`}
-          onClick={() => setActive(id)}
-        >
-          <Icon />
-          {label}
-        </button>
-      ))}
+      {tabs.map((tab) => {
+        const IconComponent = tab.icon;
+
+        return (
+          <button
+            key={tab.id}
+            className={`tab-btn ${active === tab.id ? "active" : ""}`}
+            onClick={() => setActive(tab.id)}
+          >
+            <IconComponent />
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

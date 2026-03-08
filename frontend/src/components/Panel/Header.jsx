@@ -6,8 +6,8 @@ export default function Header() {
   return (
     <div className="header">
       <div className="header-logo">
-        <span className="white">Comet</span>
-        <span className="accent">Commute</span>
+        <span className="white">commut</span>
+        <span className="accent">.r</span>
       </div>
 
       <div className="mode-toggle">

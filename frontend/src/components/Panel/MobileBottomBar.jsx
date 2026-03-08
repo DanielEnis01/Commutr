@@ -7,8 +7,8 @@ export default function MobileBottomBar() {
         <div className="mobile-ai-left">
           <Sparkles />
           <div className="mobile-ai-text">
-            <div className="mobile-ai-label">Gemini · Live Prediction</div>
-            <div className="mobile-ai-message">Lot H is your best bet — 21% occupancy</div>
+            <div className="mobile-ai-label">Parking Guidance</div>
+            <div className="mobile-ai-message">Lot H is your best bet at 21% occupancy</div>
           </div>
         </div>
         <button className="mobile-voice-btn">

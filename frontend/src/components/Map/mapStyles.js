@@ -6,7 +6,7 @@ const mapStyles = [
   {
     featureType: "road",
     elementType: "geometry.fill",
-    stylers: [{ color: "#1a1d30" }] // Lighter to improve contrast
+    stylers: [{ color: "#1a1d30" }]
   },
   {
     featureType: "road",
@@ -16,7 +16,7 @@ const mapStyles = [
   {
     featureType: "road.highway",
     elementType: "geometry.fill",
-    stylers: [{ color: "#252945" }, { weight: 2 }] // Brightest road
+    stylers: [{ color: "#252945" }, { weight: 2 }]
   },
   {
     featureType: "road.highway",
@@ -66,7 +66,7 @@ const mapStyles = [
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#07080f" }] // Main background for high contrast
+    stylers: [{ color: "#07080f" }]
   },
   {
     featureType: "landscape",

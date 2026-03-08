@@ -31,7 +31,6 @@ export function LocationPanel({
         fontFamily: 'inherit'
       }}
     >
-      {/* Handle bar with close button */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem', position: 'relative' }}>
         <div style={{ width: '2.5rem', height: '0.25rem', borderRadius: '9999px', backgroundColor: 'rgba(255, 255, 255, 0.12)' }} />
         <button 
@@ -42,7 +41,6 @@ export function LocationPanel({
         </button>
       </div>
 
-      {/* Location info */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', marginBottom: '0.75rem' }}>
         <div style={{ padding: '0.5rem', borderRadius: '0.5rem', flexShrink: 0, backgroundColor: 'rgba(94, 231, 255, 0.10)' }}>
           <MapPin size={16} style={{ color: '#5ee7ff' }} />
@@ -54,7 +52,6 @@ export function LocationPanel({
           <p style={{ fontSize: '0.75rem', margin: '0 0 0.375rem 0', color: 'rgba(255, 255, 255, 0.75)' }}>
             {address}
           </p>
-          {/* Availability badge */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.125rem 0.5rem', borderRadius: '9999px', backgroundColor: 'rgba(78, 255, 160, 0.10)' }}>
             <div style={{ width: '0.25rem', height: '0.25rem', borderRadius: '9999px', backgroundColor: '#4effa0' }} />
             <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#4effa0' }}>
@@ -64,9 +61,7 @@ export function LocationPanel({
         </div>
       </div>
 
-      {/* Stats */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-        {/* Time */}
         <div style={{ flex: 1, borderRadius: '0.5rem', padding: '0.625rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: '1px', borderStyle: 'solid' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.125rem' }}>
             <Clock size={14} style={{ color: '#5ee7ff' }} />
@@ -79,7 +74,6 @@ export function LocationPanel({
           </div>
         </div>
 
-        {/* Distance */}
         <div style={{ flex: 1, borderRadius: '0.5rem', padding: '0.625rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: '1px', borderStyle: 'solid' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.125rem' }}>
             <Navigation size={14} style={{ color: '#5ee7ff' }} />
@@ -93,7 +87,6 @@ export function LocationPanel({
         </div>
       </div>
 
-      {/* Start button */}
       <button
         onClick={onStartRoute}
         style={{

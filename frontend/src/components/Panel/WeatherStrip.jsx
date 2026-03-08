@@ -1,14 +1,39 @@
-import { CloudRain } from "lucide-react";
+import { CloudRain, Sun, Cloud, CloudLightning } from "lucide-react";
 
-export default function WeatherStrip() {
+export default function WeatherStrip({ weather, multiplier = 1.0 }) {
+  if (!weather) {
+    return (
+        <div className="weather-strip">
+          <Sun />
+          <div className="weather-info">
+            <div className="weather-info-title">Loading Weather...</div>
+            <div className="weather-info-sub">Fetching live data</div>
+          </div>
+        </div>
+    );
+  }
+
+  const temp = Math.round(weather.temperature);
+  const condition = weather.conditions?.[0]?.main || "Clear";
+  const desc = weather.conditions?.[0]?.description || "No description";
+
+  const getIcon = () => {
+    if (condition.includes("Rain") || condition.includes("Drizzle")) return <CloudRain />;
+    if (condition.includes("Thunderstorm")) return <CloudLightning />;
+    if (condition.includes("Cloud")) return <Cloud />;
+    return <Sun />;
+  };
+
   return (
     <div className="weather-strip">
-      <CloudRain />
+      {getIcon()}
       <div className="weather-info">
-        <div className="weather-info-title">Light Rain · 58°F</div>
-        <div className="weather-info-sub">Walk tolerance reduced</div>
+        <div className="weather-info-title">{condition} - {temp} F</div>
+        <div className="weather-info-sub">{desc.charAt(0).toUpperCase() + desc.slice(1)}</div>
       </div>
-      <div className="weather-badge">×1.3 impact</div>
+      {multiplier > 1.0 && (
+        <div className="weather-badge">x{multiplier} impact</div>
+      )}
     </div>
   );
 }

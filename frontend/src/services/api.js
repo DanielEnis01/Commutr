@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5001",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/",
 });
 
 export function fetchAllPredictions() {
@@ -15,3 +15,5 @@ export function fetchLotPrediction(lotName) {
 export function fetchLotTimeline(lotName) {
   return api.get(`/api/predict/timeline/${lotName}`).then((res) => res.data);
 }
+
+export default api;
