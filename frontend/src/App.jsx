@@ -5,7 +5,7 @@ import MapPane from "./components/Map/MapPane";
 import SidePanel from "./components/Panel/SidePanel";
 import MobileBottomBar from "./components/Panel/MobileBottomBar";
 import { speakText, submitVoiceChat } from "./services/api";
-import { recordVoiceClip } from "./services/voiceRecorder";
+import { ensureMicrophoneAccess, recordVoiceClip } from "./services/voiceRecorder";
 
 export default function App() {
   const [selectedPermit, setSelectedPermit] = useState(null);
@@ -34,6 +34,7 @@ export default function App() {
   const autoListenAfterAudioRef = useRef(false);
   const pendingNavigationStartRef = useRef(null);
   const voiceInteractionLockRef = useRef(false);
+  const micPermissionPrimedRef = useRef(false);
   const modeRef = useRef(mode);
   const voiceBusyRef = useRef(voiceState.busy);
   const navigationStateRef = useRef(navigationState);
@@ -257,6 +258,10 @@ export default function App() {
 
       const currentConversation = voiceConversationRef.current;
       if (!currentConversation && source !== "handsfree") {
+        if (!micPermissionPrimedRef.current) {
+          await ensureMicrophoneAccess();
+          micPermissionPrimedRef.current = true;
+        }
         await startVoicePrompt();
         return;
       }
@@ -330,14 +335,16 @@ export default function App() {
         voiceConversationRef.current = null;
         pendingNavigationStartRef.current = null;
       }
-    } catch {
+    } catch (error) {
       voiceInteractionLockRef.current = false;
       voiceBusyRef.current = false;
       setVoicePlaybackActive(false);
       setVoiceState({
         busy: false,
         transcript: "",
-        message: "Voice guidance is unavailable",
+        message: /microphone|permission|device/i.test(String(error?.message || ""))
+          ? "Microphone access is blocked on this device"
+          : "Voice guidance is unavailable",
       });
     }
   };

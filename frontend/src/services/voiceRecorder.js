@@ -27,6 +27,15 @@ function getPreferredMimeType() {
   return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
 }
 
+export async function ensureMicrophoneAccess() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Microphone access is not supported on this device");
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  stream.getTracks().forEach((track) => track.stop());
+}
+
 export function recordVoiceClip(durationMs = 3200) {
   return new Promise((resolve, reject) => {
     navigator.mediaDevices.getUserMedia({ audio: true })
