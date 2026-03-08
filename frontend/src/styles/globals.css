@@ -17,6 +17,113 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
+.permit-landing {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #0d0f1a 0%, #07080f 50%, #0a0c15 100%);
+}
+
+.permit-landing-inner {
+  width: min(1080px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.permit-landing-title {
+  font-size: clamp(52px, 10vw, 112px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  margin-bottom: 12px;
+}
+
+.permit-landing-title .white {
+  color: white;
+}
+
+.permit-landing-title .accent {
+  color: var(--accent);
+  text-shadow: 0 0 40px rgba(94, 231, 255, 0.35);
+}
+
+.permit-landing-subtitle {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: rgba(255,255,255,0.54);
+  margin-bottom: 36px;
+  text-align: center;
+}
+
+.permit-landing-tagline {
+  font-size: 16px;
+  color: rgba(255,255,255,0.72);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.permit-grid {
+  width: 100%;
+  max-width: 980px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
+  justify-content: center;
+  gap: 14px;
+}
+
+.permit-card {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(13,15,26,0.7);
+  border-radius: 24px;
+  padding: 24px 18px;
+  text-align: left;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.permit-card:hover,
+.permit-card:focus-visible {
+  transform: translateY(-6px);
+  border-color: var(--permit-color);
+  box-shadow: 0 0 32px color-mix(in srgb, var(--permit-color) 28%, transparent);
+  background: color-mix(in srgb, var(--permit-color) 12%, rgba(13,15,26,0.82));
+}
+
+.permit-card-name {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.permit-card-description {
+  font-size: 14px;
+  color: rgba(255,255,255,0.72);
+  margin-bottom: 18px;
+}
+
+.permit-card-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.58);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.permit-card:hover .permit-card-badge,
+.permit-card:focus-visible .permit-card-badge {
+  color: var(--permit-color);
+  border-color: color-mix(in srgb, var(--permit-color) 35%, transparent);
+  background: color-mix(in srgb, var(--permit-color) 10%, rgba(255,255,255,0.04));
+}
+
 .sidebar {
   height: 100vh;
   width: 360px;
@@ -48,6 +155,7 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 24px 24px 16px;
 }
 
@@ -68,6 +176,104 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   padding: 4px;
 }
 
+.voice-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voice-prompt-button {
+  width: 100%;
+  border: 1px solid rgba(94,231,255,0.24);
+  background: linear-gradient(135deg, rgba(94,231,255,0.16), rgba(78,255,160,0.08));
+  color: #fff;
+  border-radius: 20px;
+  padding: 18px 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.voice-prompt-button:hover {
+  box-shadow: 0 0 20px rgba(94,231,255,0.12);
+  background: linear-gradient(135deg, rgba(94,231,255,0.2), rgba(78,255,160,0.1));
+}
+
+.voice-prompt-button:disabled {
+  opacity: 0.8;
+  cursor: default;
+}
+
+.voice-prompt-button.busy {
+  border-color: rgba(78,255,160,0.3);
+}
+
+.voice-prompt-button-label {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.voice-prompt-button-sub {
+  display: block;
+  font-size: 13px;
+  color: rgba(255,255,255,0.72);
+}
+
+.voice-heard-text {
+  min-height: 18px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.68);
+}
+
+.voice-confirm-hint {
+  font-size: 12px;
+  color: rgba(94,231,255,0.9);
+  line-height: 1.5;
+}
+
+.drive-fetch-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+
+.drive-fetch-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.drive-destination-select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: white;
+  outline: none;
+}
+
+.drive-fetch-button {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(94,231,255,0.2);
+  background: rgba(94,231,255,0.1);
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drive-fetch-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .mode-btn {
   padding: 6px 14px;
   border-radius: var(--radius-full);
@@ -85,6 +291,50 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   background: rgba(94,231,255,0.1);
   color: var(--accent);
   border-color: rgba(94,231,255,0.2);
+}
+
+.dev-tools-btn {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.75);
+  border-radius: 9999px;
+  padding: 8px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dev-tools-btn.active {
+  border-color: rgba(94,231,255,0.22);
+  color: var(--accent);
+  background: rgba(94,231,255,0.08);
+}
+
+.permit-chip-btn {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.8);
+  border-radius: 9999px;
+  padding: 8px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dev-tools-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.dev-tools-title {
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
 }
 
 .ai-card {
@@ -132,6 +382,47 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   line-height: 1.6;
   color: rgba(255,255,255,0.75);
   font-weight: 300;
+}
+
+.voice-chat-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voice-chat-empty {
+  color: rgba(255,255,255,0.55);
+}
+
+.voice-chat-bubble {
+  border-radius: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  max-width: 92%;
+}
+
+.voice-chat-bubble.assistant {
+  background: rgba(94,231,255,0.08);
+  align-self: flex-start;
+}
+
+.voice-chat-bubble.user {
+  background: rgba(255,255,255,0.06);
+  align-self: flex-end;
+}
+
+.voice-chat-role {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 4px;
+}
+
+.voice-chat-status {
+  font-size: 12px;
+  color: rgba(94,231,255,0.8);
+  margin-top: 4px;
 }
 .ai-card-message strong {
   color: #fff;
@@ -525,6 +816,37 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   text-overflow: ellipsis;
 }
 
+.mobile-chat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mobile-chat-bubble {
+  border-radius: 16px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.mobile-chat-bubble.assistant {
+  background: rgba(94,231,255,0.08);
+}
+
+.mobile-chat-bubble.user {
+  background: rgba(255,255,255,0.06);
+}
+
+.mobile-chat-role {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 2px;
+}
+
 .mobile-voice-btn {
   width: 44px;
   height: 44px;
@@ -550,7 +872,72 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   height: 20px;
 }
 
+.map-recenter-btn {
+  position: absolute;
+  right: 18px;
+  bottom: 24px;
+  z-index: 20;
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  border: 1px solid rgba(94,231,255,0.22);
+  background: rgba(13,15,26,0.92);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.24);
+  backdrop-filter: blur(12px);
+}
+
+.map-recenter-btn:hover {
+  background: rgba(18,22,38,0.96);
+}
+
+.map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background:
+    radial-gradient(circle at center, rgba(94,231,255,0.08), transparent 42%),
+    linear-gradient(135deg, #0b0d16 0%, #07080f 55%, #0d101b 100%);
+}
+
+.map-loading-spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  border: 3px solid rgba(94,231,255,0.14);
+  border-top-color: var(--accent);
+  border-right-color: rgba(78,255,160,0.7);
+  animation: commutr-spin 0.9s linear infinite;
+  box-shadow: 0 0 26px rgba(94,231,255,0.18);
+}
+
+.map-loading-label {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+}
+
+@keyframes commutr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 768px) {
+  .permit-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
   .app-layout {
     flex-direction: column;
   }
@@ -565,5 +952,14 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
 
   .mobile-bottom-bar {
     display: block;
+  }
+
+  .map-recenter-btn {
+    right: 14px;
+    bottom: 176px;
+  }
+
+  .header {
+    flex-wrap: wrap;
   }
 }

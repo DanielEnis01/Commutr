@@ -1,8 +1,4 @@
-import { useState } from "react";
-
-export default function Header() {
-  const [mode, setMode] = useState("drive");
-
+export default function Header({ mode, onModeChange, onToggleDevTools, devToolsOpen, permitLabel, onChangePermit }) {
   return (
     <div className="header">
       <div className="header-logo">
@@ -12,18 +8,29 @@ export default function Header() {
 
       <div className="mode-toggle">
         <button
-          className={`mode-btn ${mode === "drive" ? "active" : ""}`}
-          onClick={() => setMode("drive")}
+          className={`mode-btn ${mode === "manual" ? "active" : ""}`}
+          onClick={() => onModeChange("manual")}
         >
-          Drive
+          Manual
         </button>
         <button
-          className={`mode-btn ${mode === "browse" ? "active" : ""}`}
-          onClick={() => setMode("browse")}
+          className={`mode-btn ${mode === "voice" ? "active" : ""}`}
+          onClick={() => onModeChange("voice")}
         >
-          Browse
+          Voice
         </button>
       </div>
+
+      <button
+        className={`dev-tools-btn ${devToolsOpen ? "active" : ""}`}
+        onClick={onToggleDevTools}
+        type="button"
+      >
+        Dev Testing
+      </button>
+      <button className="permit-chip-btn" type="button" onClick={onChangePermit}>
+        {permitLabel}
+      </button>
     </div>
   );
 }

@@ -36,25 +36,50 @@ function isAcademicClassEvent(event) {
     return true;
 }
 
+function parseTargetDateParts(targetDateISO, zone) {
+    if (!targetDateISO) {
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: zone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        const dateString = formatter.format(now);
+        const timeParts = now.toLocaleTimeString('en-US', {
+            timeZone: zone,
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit'
+        }).split(':');
+
+        return {
+            dateString,
+            hour: parseInt(timeParts[0], 10),
+            minute: parseInt(timeParts[1], 10),
+            displayTime: `${timeParts[0]}:${timeParts[1]}`,
+        };
+    }
+
+    const match = String(targetDateISO).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!match) {
+        return parseTargetDateParts(null, zone);
+    }
+
+    const [, year, month, day, hour, minute] = match;
+    return {
+        dateString: `${year}-${month}-${day}`,
+        hour: parseInt(hour, 10),
+        minute: parseInt(minute, 10),
+        displayTime: `${hour}:${minute}`,
+    };
+}
+
 async function getParkingPressureData(NEBULA_API_KEY, targetDateISO = null) {
     const zone = 'America/Chicago';
-    const now = targetDateISO ? new Date(targetDateISO) : new Date();
-
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: zone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
-    const dateString = formatter.format(now);
-
-    const timeParts = now.toLocaleTimeString('en-US', {
-        timeZone: zone,
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit'
-    }).split(':');
-    const currentMins = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
+    const selected = parseTargetDateParts(targetDateISO, zone);
+    const dateString = selected.dateString;
+    const currentMins = selected.hour * 60 + selected.minute;
 
     try {
         const response = await fetch(`https://api.utdnebula.com/astra/${dateString}`, {
@@ -69,7 +94,7 @@ async function getParkingPressureData(NEBULA_API_KEY, targetDateISO = null) {
         const result = await response.json();
         const buildings = result.data?.buildings || [];
 
-        console.log(`[Nebula] Data fetched for ${dateString}. Filtering for time: ${currentMins} mins (${timeParts[0]}:${timeParts[1]})`);
+        console.log(`[Nebula] Data fetched for ${dateString}. Filtering for time: ${currentMins} mins (${selected.displayTime})`);
 
         const categorized = {
             ended: [],
@@ -113,7 +138,7 @@ async function getParkingPressureData(NEBULA_API_KEY, targetDateISO = null) {
         });
 
         return {
-            queryTime: now.toLocaleTimeString('en-US', { timeZone: zone }),
+            queryTime: selected.displayTime,
             data: categorized
         };
     } catch (error) {

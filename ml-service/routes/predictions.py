@@ -5,6 +5,8 @@ import time
 from flask import Blueprint, jsonify, request
 from model.formula import compute_lot_pressure
 from model.gemini import get_parking_recommendation
+from services.permits import filter_ranked_lots_for_permit
+from services.predictions import build_calibrated_ranked_lots, build_local_tts_summary
 
 predictions_bp = Blueprint("predictions", __name__)
 CACHE_TTL = 300
@@ -37,28 +39,12 @@ def _get_gemini_cached(formula_output):
     return result, False
 
 
-def _fallback_ranked_lots(formula_output):
-    """Build ranked_lots directly from the formula scores when Gemini is unavailable."""
-    scores = formula_output.get("lot_scores", {})
-    ranked = sorted(scores.items(), key=lambda x: x[1]["pressure"])
-    lots = []
-    for i, (lot, data) in enumerate(ranked):
-        pct = int(data["pressure"] * 100)
-        status = "available" if pct < 40 else ("moderate" if pct <= 70 else "full")
-        lots.append({
-            "lot": lot,
-            "predicted_occupancy_pct": pct,
-            "status": status,
-            "recommended": i == 0,
-            "reason": f"Lowest pressure score ({pct}% predicted occupancy)" if i == 0 else None
-        })
-    return lots
-
 @predictions_bp.route("/api/ml/predict/all", methods=["POST"])
 def predict_all():
     payload = request.get_json() or {}
     classes = payload.get("classes", {})
     weather_multiplier = payload.get("weather_multiplier", 1.0)
+    permit_id = payload.get("permit_id")
     meta = payload.get("meta", {})
     request_id = meta.get("request_id", "unknown")
     request_source = meta.get("request_source", "unknown")
@@ -83,11 +69,29 @@ def predict_all():
     
     gemini_output, cache_hit = _get_gemini_cached(formula_output)
     
+    ranked = build_calibrated_ranked_lots(formula_output)
+    ranked = filter_ranked_lots_for_permit(ranked, permit_id)
+
+    gemini_ranked = gemini_output.get("ranked_lots", [])
+    gemini_reasons = {
+        lot.get("lot"): lot.get("reason")
+        for lot in gemini_ranked
+        if lot.get("lot")
+    }
+    ranked = [
+        {
+            **lot,
+            "reason": gemini_reasons.get(lot["lot"]) or lot.get("reason"),
+        }
+        for lot in ranked
+    ]
+
     response = {
         "timestamp": datetime.datetime.now().isoformat(),
         "weather_multiplier": weather_multiplier,
         "weather": payload.get("weather"),
         "summary": formula_output.get("summary", {}),
+        "permit_id": permit_id,
         "request_meta": {
             "request_id": request_id,
             "request_source": request_source,
@@ -101,11 +105,7 @@ def predict_all():
         response["error"] = gemini_output["error"]
         response["raw_text"] = gemini_output.get("raw_text", "")
     
-    ranked = gemini_output.get("ranked_lots", [])
-    if not ranked:
-        ranked = _fallback_ranked_lots(formula_output)
-        
     response["ranked_lots"] = ranked
-    response["tts_summary"] = gemini_output.get("tts_summary", "Predictions are based on campus activity data. Gemini AI is currently unavailable.")
+    response["tts_summary"] = gemini_output.get("tts_summary") or build_local_tts_summary(ranked)
     
     return jsonify(response)

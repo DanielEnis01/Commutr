@@ -2,6 +2,7 @@ import { LocationPanel } from "../Panel/LocationPanel";
 import { TripInfoCard } from "../Panel/TripInfoCard";
 import { Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useEffect, useReducer, useRef, useState } from "react";
+import { LocateFixed } from "lucide-react";
 import mapStyles from "./mapStyles";
 
 const UTD_BOUNDS = {
@@ -31,6 +32,7 @@ const UTD_LOTS = [
 ];
 
 const USER_LOCATION = { lat: 32.9805, lng: -96.7505 };
+const ARRIVAL_THRESHOLD_METERS = 35;
 const SIMULATED_AVAILABLE_SPOTS = {
   h: 41,
   j: 18,
@@ -342,22 +344,23 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
         segmentsRef.current = segments;
 
         if (!navigatingRef.current) {
-           map.fitBounds(route.bounds);
-           const isMobile = window.innerWidth <= 768;
-           map.panBy(0, isMobile ? -120 : 50); 
-
-           if (routeInfoRef.current) {
-             routeInfoRef.current({
-               distanceText: leg.distance.text,
-               distanceValue: leg.distance.value,
-               durationSeconds: baseDurationRef.current.val,
-               durationText: baseDurationRef.current.text,
-               instruction: "Calculating...",
-               progress: 0
-             });
-           }
+          map.fitBounds(route.bounds);
+          const isMobile = window.innerWidth <= 768;
+          map.panBy(0, isMobile ? -120 : 50);
         } else {
-           map.setZoom(19);
+          map.setZoom(19);
+        }
+
+        if (routeInfoRef.current) {
+          const firstInstruction = segments[0]?.instruction || "Head to the route";
+          routeInfoRef.current({
+            distanceText: leg.distance.text,
+            distanceValue: leg.distance.value,
+            durationSeconds: baseDurationRef.current.val,
+            durationText: baseDurationRef.current.text,
+            instruction: firstInstruction,
+            progress: 0
+          });
         }
       }
     );
@@ -403,13 +406,30 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
   return null;
 }
 
-export default function MapPane({ navigateToLotId, onNavigationStarted }) {
+function RecenterControl({ liveLocation, isNavigating }) {
+  const map = useMap();
+
+  const handleClick = () => {
+    if (!map || !liveLocation) return;
+    map.panTo(liveLocation);
+    map.setZoom(isNavigating ? 19 : 17);
+  };
+
+  return (
+    <button className="map-recenter-btn" type="button" onClick={handleClick}>
+      <LocateFixed size={18} />
+    </button>
+  );
+}
+
+export default function MapPane({ navigationRequest, onNavigationStarted, onNavigationUpdate }) {
   const [navState, dispatch] = useReducer(navigationReducer, {
     selectedLotId: null,
     routeInfo: null,
     isNavigating: false,
   });
   const [liveLocation, setLiveLocation] = useState(USER_LOCATION);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const onNavigationStartedRef = useRef(onNavigationStarted);
   const selectedLot = UTD_LOTS.find((lot) => lot.id === navState.selectedLotId) || null;
   const { routeInfo, isNavigating } = navState;
@@ -419,15 +439,39 @@ export default function MapPane({ navigateToLotId, onNavigationStarted }) {
   }, [onNavigationStarted]);
 
   useEffect(() => {
-    if (!navigateToLotId) return;
-    const lotIdLower = navigateToLotId.toLowerCase();
+    if (!navigationRequest?.lotId) return;
+    const lotIdLower = navigationRequest.lotId.toLowerCase();
     const matchId = lotIdLower === "m_east" ? "m" : lotIdLower;
     const lot = UTD_LOTS.find(l => l.id === matchId);
     if (lot) {
       dispatch({ type: "select_lot", lotId: lot.id });
+      if (navigationRequest.autoStart) {
+        dispatch({ type: "start_navigation" });
+      }
     }
     if (onNavigationStartedRef.current) onNavigationStartedRef.current();
-  }, [navigateToLotId]);
+  }, [navigationRequest]);
+
+  useEffect(() => {
+    if (!onNavigationUpdate) return;
+    onNavigationUpdate({
+      isNavigating,
+      routeInfo,
+      selectedLot,
+    });
+  }, [isNavigating, routeInfo, selectedLot, onNavigationUpdate]);
+
+  useEffect(() => {
+    if (!isNavigating || !selectedLot) return;
+    const distanceMeters = window.google?.maps?.geometry?.spherical?.computeDistanceBetween?.(
+      liveLocation,
+      { lat: selectedLot.lat, lng: selectedLot.lng }
+    );
+
+    if (typeof distanceMeters === "number" && distanceMeters <= ARRIVAL_THRESHOLD_METERS) {
+      dispatch({ type: "clear_navigation" });
+    }
+  }, [isNavigating, liveLocation, selectedLot]);
 
   const handleSelectLot = (lot) => {
     if (isNavigating) return;
@@ -447,6 +491,8 @@ export default function MapPane({ navigateToLotId, onNavigationStarted }) {
         disableDefaultUI={true}
         styles={mapStyles}
         style={{ width: "100%", height: "100%" }}
+        onTilesLoaded={() => setMapLoaded(true)}
+        onIdle={() => setMapLoaded(true)}
       >
         <LiveUserTracker isNavigating={isNavigating} onLocationUpdate={setLiveLocation} />
         <LotMarkers onSelectLot={handleSelectLot} selectedLotId={selectedLot?.id} isNavigating={isNavigating} />
@@ -456,7 +502,15 @@ export default function MapPane({ navigateToLotId, onNavigationStarted }) {
           onRouteInfo={(nextRouteInfo) => dispatch({ type: "set_route_info", routeInfo: nextRouteInfo })}
           isNavigating={isNavigating}
         />
+        <RecenterControl liveLocation={liveLocation} isNavigating={isNavigating} />
       </Map>
+
+      {!mapLoaded && (
+        <div className="map-loading-overlay">
+          <div className="map-loading-spinner" />
+          <div className="map-loading-label">Loading map</div>
+        </div>
+      )}
 
       {selectedLot && !isNavigating && (
         <LocationPanel 

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import axios from "axios";
-import { getParkingPressureData } from "../services/nebula.js";
-import { getWeatherData } from "../services/weather.js";
+import { buildPredictionContext } from "../services/pipeline.js";
 
 const router = Router();
 const ML_URL = process.env.ML_SERVICE_URL || "http://localhost:5002";
@@ -12,48 +11,23 @@ function buildRequestId() {
 
 router.get("/predict/all", async (req, res) => {
   try {
-    const nebulaApiKey = process.env.NEBULA_API_KEY;
-    const targetTime = req.query.timestamp;
+    const permitId = req.query.permit || null;
     const requestId = buildRequestId();
-    const requestSource = targetTime ? "time_machine" : "live";
-
-    let classData = { data: { starting: [], current: [], ended: [] } };
-    if (nebulaApiKey) {
-      classData = await getParkingPressureData(nebulaApiKey, targetTime);
-    }
-
-    const weatherApiKey = process.env.OPENWEATHER_API_KEY;
-    let weatherMultiplier = 1.0;
-    let weatherData = null;
-
-    if (weatherApiKey) {
-      weatherData = await getWeatherData(weatherApiKey);
-      if (weatherData.severe) {
-        weatherMultiplier = 1.6;
-      } else if (weatherData.rain || weatherData.snow) {
-        weatherMultiplier = 1.3;
-      }
-    }
-
-
+    const context = await buildPredictionContext();
+    const requestSource = context.effectiveTargetTime ? "time_machine" : "live";
     const payload = {
-      classes: {
-        starting_soon: classData.data.starting,
-        currently_active: classData.data.current,
-        recently_ended: classData.data.ended
-      },
-      weather_multiplier: weatherMultiplier,
-      weather: weatherData,
+      ...context.payload,
+      permit_id: permitId,
       meta: {
         request_id: requestId,
         request_source: requestSource,
-        requested_timestamp: targetTime || null,
-        campus_query_time: classData.queryTime || null,
+        requested_timestamp: context.effectiveTargetTime || null,
+        campus_query_time: context.classData.queryTime || null,
       }
     };
 
     console.log(
-      `[Backend][${requestId}] ${requestSource.toUpperCase()} timestamp=${targetTime || "now"} campus_time=${classData.queryTime || "unknown"} active=${classData.data.current.length} starting=${classData.data.starting.length} ended=${classData.data.ended.length} active_capacity=${classData.data.current.reduce((acc, c) => acc + c.capacity, 0)}`
+      `[Backend][${requestId}] ${requestSource.toUpperCase()} timestamp=${context.effectiveTargetTime || "now"} campus_time=${context.classData.queryTime || "unknown"} active=${context.classData.data.current.length} starting=${context.classData.data.starting.length} ended=${context.classData.data.ended.length} active_capacity=${context.classData.data.current.reduce((acc, c) => acc + c.capacity, 0)}`
     );
 
     const { data } = await axios.post(`${ML_URL}/api/ml/predict/all`, payload);

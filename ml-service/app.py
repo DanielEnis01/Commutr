@@ -4,12 +4,14 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 
 from routes.predictions import predictions_bp
+from routes.voice import voice_bp
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(predictions_bp)
+app.register_blueprint(voice_bp)
 
 
 @app.route("/health")

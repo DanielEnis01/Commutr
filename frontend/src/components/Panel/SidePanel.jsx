@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import api from "../../services/api";
+import api, { setDevTimeOverride } from "../../services/api";
 import Header from "./Header";
 import AICard from "./AICard";
 import WeatherStrip from "./WeatherStrip";
 import LotCard from "./LotCard";
-import StatsGrid from "./StatsGrid";
-import OccupancyChart from "./OccupancyChart";
 import NavigateButton from "./NavigateButton";
-import TabBar from "./TabBar";
+import StatsGrid from "./StatsGrid";
 import { BUILDING_AFFINITY, BUILDING_OPTIONS } from "../../constants/buildingAffinity";
+import { PERMIT_LABELS } from "../../constants/permits";
 
 const LOT_CAPACITIES = {
   H: 582,
@@ -29,7 +28,66 @@ const LOT_CAPACITIES = {
   T: 388,
 };
 
-export default function SidePanel({ onNavigateToLot }) {
+function DevTestingPanel({
+  useTimeMachine,
+  handleTimeMachineToggle,
+  pendingTime,
+  setPendingTime,
+  activeTime,
+}) {
+  return (
+    <div className="dev-tools-panel">
+      <div className="dev-tools-title">Time Override</div>
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "rgba(255,255,255,0.7)" }}>
+        <input
+          type="checkbox"
+          checked={useTimeMachine}
+          onChange={(e) => handleTimeMachineToggle(e.target.checked)}
+        />
+        Custom time
+      </label>
+      {useTimeMachine && (
+        <div style={{ marginTop: "8px" }}>
+          <input
+            type="datetime-local"
+            value={pendingTime}
+            onChange={(e) => setPendingTime(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px",
+              borderRadius: "8px",
+              background: "rgba(255,255,255,0.1)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              color: "white",
+              colorScheme: "dark",
+            }}
+          />
+          {activeTime && (
+            <div style={{ marginTop: "6px", fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
+              Showing: {new Date(activeTime).toLocaleString()}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function SidePanel({
+  mode,
+  onModeChange,
+  onNavigateToLot,
+  voiceResult,
+  voiceState,
+  voiceConversation,
+  onVoiceTrigger,
+  voiceChatMessages,
+  isNavigating,
+  devToolsOpen,
+  onToggleDevTools,
+  selectedPermit,
+  onChangePermit,
+}) {
   const [predictions, setPredictions] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -44,25 +102,47 @@ export default function SidePanel({ onNavigateToLot }) {
     try {
       setLoading(true);
       setError("");
-      const timestamp = (useTimeMachine && pendingTime) ? pendingTime : null;
-      let url = "/api/predict/all";
-      if (timestamp) url += `?timestamp=${encodeURIComponent(timestamp)}`;
+      let url = `/api/predict/all?permit=${encodeURIComponent(selectedPermit || "")}`;
 
       const { data } = await api.get(url);
       setPredictions(data);
-      setActiveTime(timestamp || null);
+      setActiveTime(data?.request_meta?.requested_timestamp || null);
     } catch (err) {
       console.error("[Commutr] Failed to fetch predictions", err.message);
       setError("Prediction service is unavailable right now.");
     } finally {
       setLoading(false);
     }
-  }, [useTimeMachine, pendingTime]);
+  }, [useTimeMachine, pendingTime, selectedPermit]);
 
   useEffect(() => {
-    if (useTimeMachine) return;
-    fetchPredictions();
-  }, [useTimeMachine, fetchPredictions]);
+    if (!voiceResult) return;
+    setPredictions(voiceResult);
+    setSelectedBuilding(voiceResult.destination_building || "");
+  }, [voiceResult]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncOverride() {
+      try {
+        const nextTimestamp = useTimeMachine ? pendingTime : null;
+        const result = await setDevTimeOverride(useTimeMachine, nextTimestamp);
+        if (!cancelled) {
+          setActiveTime(result.time_override || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[Commutr] Failed to update time override", error.message);
+        }
+      }
+    }
+
+    syncOverride();
+    return () => {
+      cancelled = true;
+    };
+  }, [useTimeMachine, pendingTime]);
 
   const handleTimeMachineToggle = (checked) => {
     setUseTimeMachine(checked);
@@ -129,8 +209,6 @@ export default function SidePanel({ onNavigateToLot }) {
         }))
     : baseRankedLots;
   const topLot = rankedLots.length > 0 ? rankedLots[0] : null;
-  const chartLotName = topLot?.lot || rankedLots[1]?.lot || null;
-  const sysSum = predictions?.summary || {};
   const selectedBuildingLabel = BUILDING_OPTIONS.find((option) => option.value === selectedBuilding)?.label;
   const getAvailableSpots = (lotCode, occupancyPct) => {
     const capacity = LOT_CAPACITIES[lotCode] || 0;
@@ -179,98 +257,136 @@ export default function SidePanel({ onNavigateToLot }) {
         return `Lot ${topLot.lot} is the strongest overall choice right now. ${alternativeLots.length > 0 ? `Alternatives: ${alternativeLots.map((lotData) => `Lot ${lotData.lot} at ${lotData.predicted_occupancy_pct}%`).join(", ")}.` : ""}`.trim();
       })()
     : topLot?.reason;
-  
+
+  const summary = predictions?.summary || {};
+  const weatherMain = predictions?.weather?.conditions?.[0]?.main || "Clear";
   const stats = [
-    { label: "Active Class Capacity", value: sysSum.total_active_capacity || "0", accent: true },
-    { label: "Weather Impact", value: predictions ? `x${predictions.weather_multiplier || "1.0"}` : "...", muted: true },
-    { label: "Sections Starting", value: sysSum.events_starting ?? "0", muted: true },
-    { label: "Sections Ending", value: sysSum.events_ending ?? "0", green: true },
+    {
+      label: "Current People In Class",
+      value: summary.total_active_capacity ?? "...",
+      accent: true,
+    },
+    {
+      label: "Ending Soon",
+      value: summary.events_ending ?? "...",
+      muted: true,
+    },
+    {
+      label: "Starting Soon",
+      value: summary.events_starting ?? "...",
+      green: true,
+    },
+    {
+      label: "Weather Effect",
+      value: predictions ? weatherMain : "...",
+      muted: true,
+    },
   ];
 
   const isSimulating = useTimeMachine && activeTime;
 
   return (
     <div className="sidebar">
-      <Header />
+      <Header
+        mode={mode}
+        onModeChange={onModeChange}
+        onToggleDevTools={onToggleDevTools}
+        devToolsOpen={devToolsOpen}
+        permitLabel={PERMIT_LABELS[selectedPermit] || "Permit"}
+        onChangePermit={onChangePermit}
+      />
 
       <div className="sidebar-scroll">
-        <div style={{ padding: "0 24px", marginBottom: "16px" }}>
-            <div style={{ marginBottom: "12px" }}>
-               <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.55)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                  Destination
-               </div>
-               <select
-                  value={selectedBuilding}
-                  onChange={(e) => setSelectedBuilding(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: "10px",
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    color: "white",
-                    outline: "none",
-                  }}
-               >
-                  {BUILDING_OPTIONS.map((option) => (
-                    <option key={option.value || "none"} value={option.value} style={{ background: "#0d0f1a", color: "white" }}>
-                      {option.label}
-                    </option>
-                  ))}
-               </select>
-               {selectedBuildingLabel && (
-                 <div style={{ marginTop: "6px", fontSize: "11px", color: "rgba(94,231,255,0.8)" }}>
-                   Recommendations balance walking distance with space availability for {selectedBuildingLabel}.
-                 </div>
-               )}
-            </div>
-            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "rgba(255,255,255,0.7)" }}>
-               <input 
-                  type="checkbox" 
-                  checked={useTimeMachine} 
-                  onChange={(e) => handleTimeMachineToggle(e.target.checked)} 
-               />
-               Custom time
-            </label>
-            {useTimeMachine && (
-               <div style={{ marginTop: "8px" }}>
-                 <input 
-                    type="datetime-local" 
-                    value={pendingTime}
-                    onChange={(e) => setPendingTime(e.target.value)}
-                    style={{
-                       width: "100%", padding: "8px", borderRadius: "8px",
-                       background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-                       color: "white", colorScheme: "dark"
-                    }}
-                 />
-                 <button
-                    onClick={fetchPredictions}
-                    style={{
-                       width: "100%", marginTop: "8px", padding: "10px", borderRadius: "8px",
-                       background: "rgba(255,255,255,0.1)",
-                       border: "1px solid rgba(255,255,255,0.16)",
-                       color: "white", fontWeight: "600",
-                       fontSize: "13px", cursor: "pointer",
-                       transition: "opacity 0.2s"
-                    }}
-                    onMouseOver={(e) => e.target.style.opacity = "0.85"}
-                    onMouseOut={(e) => e.target.style.opacity = "1"}
-                 >
-                    Update predictions
-                 </button>
-                 {activeTime && (
-                    <div style={{ marginTop: "6px", fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
-                       Showing: {new Date(activeTime).toLocaleString()}
-                    </div>
-                 )}
-               </div>
-            )}
-        </div>
+        {devToolsOpen && (
+          <DevTestingPanel
+            useTimeMachine={useTimeMachine}
+            handleTimeMachineToggle={handleTimeMachineToggle}
+            pendingTime={pendingTime}
+            setPendingTime={setPendingTime}
+            activeTime={activeTime}
+          />
+        )}
 
+        {mode === "voice" ? (
+          <>
+            <div>
+              <div className="section-label">Voice Guidance</div>
+              <AICard
+                loading={loading}
+                tts={displayTts}
+                reason={displayReason}
+              mode={mode}
+              chatMessages={voiceChatMessages}
+              listening={voiceState?.busy}
+              isNavigating={isNavigating}
+            />
+            </div>
+
+            <div className="voice-control-panel">
+              <button
+                className={`voice-prompt-button ${voiceState?.busy ? "busy" : ""}`}
+                onClick={onVoiceTrigger}
+                disabled={voiceState?.busy}
+                type="button"
+              >
+                <span className="voice-prompt-button-label">
+                  {voiceState?.busy ? "Listening..." : "Tap To Speak"}
+                </span>
+                <span className="voice-prompt-button-sub">
+                  {voiceConversation?.awaiting_confirmation
+                    ? "Say confirm or switch to another lot"
+                    : "Ask for a destination or say hey commuter"}
+                </span>
+              </button>
+
+              <div className="voice-heard-text">
+                {voiceState?.transcript
+                  ? `Heard: ${voiceState.transcript}`
+                  : "Heard text will appear here after you speak."}
+              </div>
+
+              {voiceConversation?.awaiting_confirmation && voiceConversation?.pending_lot && (
+                <div className="voice-confirm-hint">
+                  Say <strong>confirm</strong> to start Lot {voiceConversation.pending_lot}, or say <strong>switch to lot</strong> and a lot name.
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
         <div>
           <div className="section-label">Guidance</div>
-          <AICard loading={loading} tts={displayTts} reason={displayReason} />
+          <AICard
+            loading={loading}
+            tts={displayTts}
+            reason={displayReason}
+            mode={mode}
+            chatMessages={voiceChatMessages}
+            listening={voiceState?.busy}
+            isNavigating={isNavigating}
+          />
+          <div className="drive-fetch-panel">
+            <div className="drive-fetch-label">Destination</div>
+            <select
+              value={selectedBuilding}
+              onChange={(e) => setSelectedBuilding(e.target.value)}
+              className="drive-destination-select"
+            >
+              {BUILDING_OPTIONS.map((option) => (
+                <option key={option.value || "none"} value={option.value} style={{ background: "#0d0f1a", color: "white" }}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              className="drive-fetch-button"
+              type="button"
+              onClick={fetchPredictions}
+              disabled={!selectedBuilding || loading}
+            >
+              {loading ? "Fetching..." : "Fetch parking guidance"}
+            </button>
+          </div>
         </div>
 
         {predictions && <WeatherStrip weather={predictions?.weather} multiplier={predictions?.weather_multiplier} />}
@@ -280,20 +396,8 @@ export default function SidePanel({ onNavigateToLot }) {
           {!predictions && !loading && (
              <div style={{ padding: "24px", textAlign: 'center' }}>
                 <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', marginBottom: '12px' }}>
-                   {error || (!useTimeMachine ? "Ready to find your spot?" : "Select a time to begin.")}
+                   {error || (!useTimeMachine ? "Select a destination and fetch parking guidance." : "Select a time to begin.")}
                 </div>
-                {!useTimeMachine && (
-                  <button 
-                    onClick={fetchPredictions}
-                    style={{
-                        padding: "10px 20px", borderRadius: "10px",
-                        background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-                        color: "white", fontWeight: "600", cursor: "pointer", fontSize: "12px"
-                    }}
-                  >
-                    Load predictions
-                  </button>
-                )}
              </div>
           )}
           {loading ? (
@@ -313,13 +417,10 @@ export default function SidePanel({ onNavigateToLot }) {
             ))
           )}
         </div>
-
-        <div style={{ marginTop: 16 }}>
-          <div className="section-label">{isSimulating ? "Simulated Status" : "Campus Right Now"}</div>
+        <div>
+          <div className="section-label">Current Session</div>
           <StatsGrid stats={stats} />
         </div>
-
-        <OccupancyChart lotName={chartLotName} />
 
         <NavigateButton 
           lotName={topLot ? `Lot ${topLot.lot}` : "..."} 
@@ -329,9 +430,9 @@ export default function SidePanel({ onNavigateToLot }) {
             onNavigateToLot(targetId);
           }} 
         />
+          </>
+        )}
       </div>
-
-      <TabBar />
     </div>
   );
 }
