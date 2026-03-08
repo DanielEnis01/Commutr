@@ -1,10 +1,12 @@
 import 'dotenv/config';
+import fs from 'fs';
 
 let parkingData = null;
 
 async function getParkingPressureData(NEBULA_API_KEY) {
-    //const now = new Date();
-    const now = new Date('2026-03-06T12:00:00');
+    const now = new Date();
+    //Test Date for my prototype
+    //const now = new Date('2026-03-09T12:00:00');
     const dateString = now.toISOString().split('T')[0];
     const currentMins = now.getHours() * 60 + now.getMinutes();
 
@@ -24,12 +26,8 @@ async function getParkingPressureData(NEBULA_API_KEY) {
     buildings.forEach(building => {
         (building.rooms || []).forEach(room => {
             (room.events || []).forEach(event => {
-                if (!event.start_date || !event.end_date){
-                    return;
-                }
-                if (event.activity_name === 'No Event Requesting'){
-                    return;
-                } 
+                if (!event.start_date || !event.end_date) return;
+                if (event.activity_name === 'No Event Requesting') return;
 
                 const startDate = new Date(event.start_date);
                 const endDate = new Date(event.end_date);
@@ -39,7 +37,6 @@ async function getParkingPressureData(NEBULA_API_KEY) {
                 const payload = {
                     activity: event.activity_name,
                     building: building.building,
-                    room: room.room,
                     capacity: event.capacity || 0,
                     type: event.meeting_type,
                     start: startDate.toLocaleTimeString(),
@@ -93,6 +90,9 @@ async function testNebulaCall() {
             console.log('\nRecently Ended:');
             console.table(parkingData.data.ended);
         }
+
+        fs.writeFileSync('parking_data.json', JSON.stringify(parkingData, null, 2));
+        console.log('\nData written to parking_data.json');
 
     } catch (error) {
         console.error('Error:', error.message);
