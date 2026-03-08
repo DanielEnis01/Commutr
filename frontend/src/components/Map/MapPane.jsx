@@ -40,6 +40,7 @@ const GEOLOCATION_OPTIONS = {
 };
 const MIN_LOCATION_DELTA_METERS = 2;
 const MAX_ACCEPTABLE_ACCURACY_METERS = 120;
+const ROUTE_SNAP_THRESHOLD_METERS = 18;
 const SIMULATED_AVAILABLE_SPOTS = {
   h: 41,
   j: 18,
@@ -177,7 +178,7 @@ function navigationReducer(state, action) {
   }
 }
 
-function LiveUserTracker({ isNavigating, trackedLocation, onLocationUpdate }) {
+function LiveUserTracker({ isNavigating, trackedLocation, cameraLocked, onLocationUpdate }) {
   const map = useMap();
   const geometryLib = useMapsLibrary("geometry");
   const markerRef = useRef(null);
@@ -263,7 +264,7 @@ function LiveUserTracker({ isNavigating, trackedLocation, onLocationUpdate }) {
         return;
       }
 
-      if (map && (!hasCenteredOnUserRef.current || isNavigating)) {
+      if (map && (!hasCenteredOnUserRef.current || (isNavigating && cameraLocked))) {
         map.panTo(newPos);
         map.setZoom(isNavigating ? 19 : 17);
         hasCenteredOnUserRef.current = true;
@@ -316,7 +317,7 @@ function LiveUserTracker({ isNavigating, trackedLocation, onLocationUpdate }) {
              }
           }
 
-          if (isNavigating) {
+          if (isNavigating && cameraLocked) {
              const icon = markerRef.current.getIcon();
              icon.rotation = heading;
              markerRef.current.setIcon(icon);
@@ -333,7 +334,7 @@ function LiveUserTracker({ isNavigating, trackedLocation, onLocationUpdate }) {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [map, geometryLib, isNavigating, trackedLocation]);
+  }, [map, geometryLib, isNavigating, trackedLocation, cameraLocked]);
 
   return null;
 }
@@ -538,6 +539,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
      let closestDist = Infinity;
      let currentInstruction = segmentsRef.current[0].instruction;
      const nearestMatch = findNearestPointOnPath(geometryLib, origin, routePathRef.current);
+     const snapMatch = nearestMatch?.distanceToRoute <= ROUTE_SNAP_THRESHOLD_METERS ? nearestMatch : null;
      
      segmentsRef.current.forEach(seg => {
         for (let i = 0; i < seg.path.length; i += 3) { 
@@ -550,17 +552,20 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
         }
      });
 
-     const referencePoint = nearestMatch?.point || origin;
+     const referencePoint = snapMatch?.point || origin;
      const distRemaining = geometryLib.spherical.computeDistanceBetween(referencePoint, { lat: destination.lat, lng: destination.lng });
-     let progress = nearestMatch
-       ? (nearestMatch.distanceAlongRoute / Math.max(1, entireDistanceRef.current)) * 100
+     let progress = snapMatch
+       ? (snapMatch.distanceAlongRoute / Math.max(1, entireDistanceRef.current)) * 100
        : 100 - ((distRemaining / Math.max(1, entireDistanceRef.current)) * 100);
      progress = Math.max(0, Math.min(100, progress));
 
-     if (nearestMatch && traveledPolylineRef.current && remainingPolylineRef.current) {
-        const { traveledPath, remainingPath } = splitPathAtMatch(routePathRef.current, nearestMatch);
+     if (snapMatch && traveledPolylineRef.current && remainingPolylineRef.current) {
+        const { traveledPath, remainingPath } = splitPathAtMatch(routePathRef.current, snapMatch);
         traveledPolylineRef.current.setPath(traveledPath);
         remainingPolylineRef.current.setPath(remainingPath);
+     } else if (traveledPolylineRef.current && remainingPolylineRef.current) {
+        traveledPolylineRef.current.setPath([]);
+        remainingPolylineRef.current.setPath(routePathRef.current);
      }
 
      if (routeInfoRef.current) {
@@ -571,7 +576,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
             durationText: baseDurationRef.current.text,
             instruction: currentInstruction,
             progress: progress,
-            snappedLocation: nearestMatch?.point || null,
+            snappedLocation: snapMatch?.point || null,
         });
      }
   }, [origin, isNavigating, geometryLib, destination]);
@@ -579,17 +584,27 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
   return null;
 }
 
-function RecenterControl({ liveLocation, isNavigating }) {
+function RecenterControl({ liveLocation, isNavigating, cameraLocked, onToggleLock }) {
   const map = useMap();
 
   const handleClick = () => {
     if (!map || !liveLocation) return;
+    if (cameraLocked) {
+      onToggleLock?.(false);
+      return;
+    }
+    onToggleLock?.(true);
     map.panTo(liveLocation);
     map.setZoom(isNavigating ? 19 : 17);
   };
 
   return (
-    <button className="map-recenter-btn" type="button" onClick={handleClick}>
+    <button
+      className={`map-recenter-btn ${cameraLocked ? "active" : ""}`}
+      type="button"
+      onClick={handleClick}
+      title={cameraLocked ? "Unlock camera follow" : "Lock camera follow"}
+    >
       <LocateFixed size={18} />
     </button>
   );
@@ -604,6 +619,7 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
   const [liveLocation, setLiveLocation] = useState(USER_LOCATION);
   const [snappedLocation, setSnappedLocation] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [cameraLocked, setCameraLocked] = useState(true);
   const onNavigationStartedRef = useRef(onNavigationStarted);
   const selectedLot = UTD_LOTS.find((lot) => lot.id === navState.selectedLotId) || null;
   const { routeInfo, isNavigating } = navState;
@@ -621,6 +637,7 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
       dispatch({ type: "select_lot", lotId: lot.id });
       if (navigationRequest.autoStart) {
         dispatch({ type: "start_navigation" });
+        setCameraLocked(true);
       }
     }
     if (onNavigationStartedRef.current) onNavigationStartedRef.current();
@@ -650,6 +667,7 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
   useEffect(() => {
     if (!isNavigating) {
       setSnappedLocation(null);
+      setCameraLocked(true);
     }
   }, [isNavigating]);
 
@@ -673,10 +691,12 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
         style={{ width: "100%", height: "100%" }}
         onTilesLoaded={() => setMapLoaded(true)}
         onIdle={() => setMapLoaded(true)}
+        onDragstart={() => setCameraLocked(false)}
       >
         <LiveUserTracker
           isNavigating={isNavigating}
           trackedLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation}
+          cameraLocked={cameraLocked}
           onLocationUpdate={setLiveLocation}
         />
         <LotMarkers onSelectLot={handleSelectLot} selectedLotId={selectedLot?.id} isNavigating={isNavigating} />
@@ -699,7 +719,12 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
           }}
           isNavigating={isNavigating}
         />
-        <RecenterControl liveLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation} isNavigating={isNavigating} />
+        <RecenterControl
+          liveLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation}
+          isNavigating={isNavigating}
+          cameraLocked={cameraLocked}
+          onToggleLock={(nextLocked) => setCameraLocked(nextLocked)}
+        />
       </Map>
 
       {!mapLoaded && (
@@ -716,7 +741,10 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
           estimatedTime={routeInfo ? Math.round(routeInfo.durationSeconds / 60) : "--"}
           distance={routeInfo ? parseFloat(routeInfo.distanceText.replace(/[^\d.-]/g, '')) : 0}
           availableSpots={selectedLot.vacant ? (SIMULATED_AVAILABLE_SPOTS[selectedLot.id] || 0) : 0}
-          onStartRoute={() => dispatch({ type: "start_navigation" })}
+          onStartRoute={() => {
+            setCameraLocked(true);
+            dispatch({ type: "start_navigation" });
+          }}
           onCancel={handleCancelLine}
         />
       )}

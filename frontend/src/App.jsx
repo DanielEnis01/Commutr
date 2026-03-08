@@ -26,6 +26,7 @@ export default function App() {
   });
   const [voicePlaybackActive, setVoicePlaybackActive] = useState(false);
   const audioRef = useRef(null);
+  const autoListenTimeoutRef = useRef(null);
   const lastSpokenInstructionRef = useRef("");
   const voiceConversationRef = useRef(null);
   const wakeRecognitionRef = useRef(null);
@@ -91,6 +92,10 @@ export default function App() {
     lastSpokenInstructionRef.current = "";
     voiceInteractionLockRef.current = false;
     setVoicePlaybackActive(false);
+    if (autoListenTimeoutRef.current) {
+      window.clearTimeout(autoListenTimeoutRef.current);
+      autoListenTimeoutRef.current = null;
+    }
     releaseMicrophoneAccess().catch(() => {});
     if (audioRef.current) {
       audioRef.current.onended = null;
@@ -145,6 +150,10 @@ export default function App() {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    if (autoListenTimeoutRef.current) {
+      window.clearTimeout(autoListenTimeoutRef.current);
+      autoListenTimeoutRef.current = null;
+    }
     const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
     audioRef.current = audio;
     suppressWakeWordRef.current = true;
@@ -172,9 +181,11 @@ export default function App() {
         !voiceBusyRef.current &&
         !navigationStateRef.current.isNavigating
       ) {
-        window.setTimeout(() => {
+        const autoListenDelayMs = /iPad|iPhone|iPod/.test(navigator.userAgent) ? 1300 : 650;
+        autoListenTimeoutRef.current = window.setTimeout(() => {
+          autoListenTimeoutRef.current = null;
           handleVoiceTrigger({ source: "handsfree" });
-        }, 650);
+        }, autoListenDelayMs);
       }
     };
 
@@ -192,9 +203,19 @@ export default function App() {
   useEffect(() => {
     if (mode !== "voice") {
       autoListenAfterAudioRef.current = false;
+      if (autoListenTimeoutRef.current) {
+        window.clearTimeout(autoListenTimeoutRef.current);
+        autoListenTimeoutRef.current = null;
+      }
       releaseMicrophoneAccess().catch(() => {});
     }
   }, [mode]);
+
+  useEffect(() => () => {
+    if (autoListenTimeoutRef.current) {
+      window.clearTimeout(autoListenTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -251,6 +272,10 @@ export default function App() {
 
   const handleVoiceTrigger = async ({ source = "manual" } = {}) => {
     try {
+      if (autoListenTimeoutRef.current) {
+        window.clearTimeout(autoListenTimeoutRef.current);
+        autoListenTimeoutRef.current = null;
+      }
       if (
         voiceInteractionLockRef.current ||
         voiceBusyRef.current ||
@@ -342,15 +367,17 @@ export default function App() {
         pendingNavigationStartRef.current = null;
       }
     } catch (error) {
+      const errorMessage = String(error?.message || error || "Unknown error");
+      console.error("[Commutr] Voice trigger failed", error);
       voiceInteractionLockRef.current = false;
       voiceBusyRef.current = false;
       setVoicePlaybackActive(false);
       setVoiceState({
         busy: false,
         transcript: "",
-        message: /microphone|permission|device/i.test(String(error?.message || ""))
+        message: /microphone|permission|device/i.test(errorMessage)
           ? "Microphone access is blocked on this device"
-          : "Voice guidance is unavailable",
+          : `Voice failed: ${errorMessage}`,
       });
     }
   };
