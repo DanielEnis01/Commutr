@@ -103,6 +103,19 @@ CANCEL_KEYWORDS = (
     "stop",
 )
 
+MIME_EXTENSION_MAP = {
+    "audio/webm": ".webm",
+    "audio/webm;codecs=opus": ".webm",
+    "audio/ogg": ".ogg",
+    "audio/ogg;codecs=opus": ".ogg",
+    "audio/mp4": ".mp4",
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/aac": ".aac",
+}
+
 
 def _detect_destination(transcript):
     lowered = (transcript or "").lower()
@@ -231,6 +244,12 @@ def _looks_like_confirmation(transcript):
 def _looks_like_cancel(transcript):
     lowered = _normalize_transcript(transcript)
     return any(keyword in lowered for keyword in CANCEL_KEYWORDS)
+
+
+def _filename_for_mime_type(mime_type):
+    normalized = (mime_type or "").split(";")[0].strip().lower()
+    extension = MIME_EXTENSION_MAP.get(normalized, ".webm")
+    return f"voice_query{extension}"
 
 
 def _spoken_lot_variants(lot_code):
@@ -378,8 +397,10 @@ def speak_text():
     try:
         audio = synthesize_speech_bytes(text)
     except RuntimeError as exc:
+        print(f"[voice.speak] runtime error: {exc}")
         return jsonify({"error": str(exc)}), 503
     except Exception as exc:
+        print(f"[voice.speak] synthesis failed: {exc}")
         return jsonify({"error": f"Text-to-speech failed: {exc}"}), 502
 
     return jsonify({
@@ -409,10 +430,12 @@ def voice_chat():
         return jsonify({"error": "audio_base64 must be valid base64"}), 400
 
     try:
-        transcript = speech_to_text(("voice_query.webm", audio_bytes, mime_type))
+        transcript = speech_to_text((_filename_for_mime_type(mime_type), audio_bytes, mime_type))
     except RuntimeError as exc:
+        print(f"[voice.chat] runtime error: {exc}")
         return jsonify({"error": str(exc)}), 503
     except Exception as exc:
+        print(f"[voice.chat] speech-to-text failed for mime_type={mime_type}: {exc}")
         return jsonify({"error": f"Speech-to-text failed: {exc}"}), 502
 
     awaiting_confirmation = bool(voice_context.get("awaiting_confirmation"))
@@ -477,8 +500,10 @@ def voice_chat():
     try:
         audio = synthesize_speech_bytes(voice_text)
     except RuntimeError as exc:
+        print(f"[voice.chat] tts runtime error: {exc}")
         return jsonify({"error": str(exc)}), 503
     except Exception as exc:
+        print(f"[voice.chat] tts failed: {exc}")
         return jsonify({"error": f"Text-to-speech failed: {exc}"}), 502
 
     response = {

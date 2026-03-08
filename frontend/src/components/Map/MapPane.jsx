@@ -33,6 +33,13 @@ const UTD_LOTS = [
 
 const USER_LOCATION = { lat: 32.9805, lng: -96.7505 };
 const ARRIVAL_THRESHOLD_METERS = 35;
+const GEOLOCATION_OPTIONS = {
+  enableHighAccuracy: true,
+  maximumAge: 0,
+  timeout: 8000,
+};
+const MIN_LOCATION_DELTA_METERS = 2;
+const MAX_ACCEPTABLE_ACCURACY_METERS = 120;
 const SIMULATED_AVAILABLE_SPOTS = {
   h: 41,
   j: 18,
@@ -87,6 +94,8 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
   const geometryLib = useMapsLibrary("geometry");
   const markerRef = useRef(null);
   const lastPosRef = useRef(USER_LOCATION);
+  const lastAccuracyRef = useRef(Infinity);
+  const hasCenteredOnUserRef = useRef(false);
   const onUpdateRef = useRef(onLocationUpdate);
 
   useEffect(() => {
@@ -135,17 +144,76 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
   useEffect(() => {
     if (!navigator.geolocation || !markerRef.current) return;
 
-    navigator.geolocation.getCurrentPosition((pos) => {
-       const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-       lastPosRef.current = newPos;
-       if (markerRef.current) markerRef.current.setPosition(newPos);
-       onUpdateRef.current(newPos);
-    }, () => {}, { enableHighAccuracy: true });
+    const applyPosition = (pos) => {
+      const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const nextAccuracy = Number(pos.coords.accuracy) || Infinity;
+      const oldPos = lastPosRef.current;
+      const movedDistance = geometryLib && oldPos
+        ? geometryLib.spherical.computeDistanceBetween(oldPos, newPos)
+        : Infinity;
+      const accuracyWorsened = nextAccuracy > lastAccuracyRef.current + 25;
+
+      if (
+        nextAccuracy > MAX_ACCEPTABLE_ACCURACY_METERS &&
+        lastAccuracyRef.current < nextAccuracy
+      ) {
+        return;
+      }
+
+      if (
+        Number.isFinite(movedDistance) &&
+        movedDistance < MIN_LOCATION_DELTA_METERS &&
+        accuracyWorsened
+      ) {
+        return;
+      }
+
+      if (markerRef.current) {
+        markerRef.current.setPosition(newPos);
+      }
+
+      if (map && (!hasCenteredOnUserRef.current || isNavigating)) {
+        map.panTo(newPos);
+        map.setZoom(isNavigating ? 19 : 17);
+        hasCenteredOnUserRef.current = true;
+      }
+
+      lastPosRef.current = newPos;
+      lastAccuracyRef.current = nextAccuracy;
+      onUpdateRef.current(newPos);
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      applyPosition,
+      (err) => console.log("[Commutr] getCurrentPosition failed", err),
+      GEOLOCATION_OPTIONS
+    );
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         const oldPos = lastPosRef.current;
+        const nextAccuracy = Number(pos.coords.accuracy) || Infinity;
+        const movedDistance = geometryLib && oldPos
+          ? geometryLib.spherical.computeDistanceBetween(oldPos, newPos)
+          : Infinity;
+        const accuracyWorsened = nextAccuracy > lastAccuracyRef.current + 25;
+
+        if (
+          nextAccuracy > MAX_ACCEPTABLE_ACCURACY_METERS &&
+          lastAccuracyRef.current < nextAccuracy
+        ) {
+          return;
+        }
+
+        if (
+          Number.isFinite(movedDistance) &&
+          movedDistance < MIN_LOCATION_DELTA_METERS &&
+          accuracyWorsened
+        ) {
+          return;
+        }
+
         if (markerRef.current) {
           markerRef.current.setPosition(newPos);
 
@@ -168,10 +236,11 @@ function LiveUserTracker({ isNavigating, onLocationUpdate }) {
         }
 
         lastPosRef.current = newPos;
+        lastAccuracyRef.current = nextAccuracy;
         onUpdateRef.current(newPos);
       },
-      (err) => console.log(err),
-      { enableHighAccuracy: true, maximumAge: 10000 }
+      (err) => console.log("[Commutr] watchPosition failed", err),
+      GEOLOCATION_OPTIONS
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
