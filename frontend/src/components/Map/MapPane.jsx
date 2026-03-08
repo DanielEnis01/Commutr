@@ -41,6 +41,7 @@ const GEOLOCATION_OPTIONS = {
 const MIN_LOCATION_DELTA_METERS = 2;
 const MAX_ACCEPTABLE_ACCURACY_METERS = 120;
 const ROUTE_SNAP_THRESHOLD_METERS = 18;
+const ROUTE_PROGRESS_UPDATE_MS = 250;
 const SIMULATED_AVAILABLE_SPOTS = {
   h: 41,
   j: 18,
@@ -146,6 +147,13 @@ function splitPathAtMatch(path, match) {
   const traveledPath = [...path.slice(0, match.index + 1), match.point];
   const remainingPath = [match.point, ...path.slice(match.index + 1)];
   return { traveledPath, remainingPath };
+}
+
+function sampleSegmentPath(path = []) {
+  if (path.length <= 10) {
+    return path;
+  }
+  return path.filter((_, index) => index === 0 || index === path.length - 1 || index % 4 === 0);
 }
 
 function navigationReducer(state, action) {
@@ -407,6 +415,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
   const routePathRef = useRef([]);
   const entireDistanceRef = useRef(1);
   const baseDurationRef = useRef({ val: 0, text: "" });
+  const lastProgressUpdateRef = useRef(0);
   const originRef = useRef(origin);
   const navigatingRef = useRef(isNavigating);
   const routeInfoRef = useRef(onRouteInfo);
@@ -480,7 +489,7 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
         leg.steps.forEach((step) => {
           segments.push({
-            path: step.path,
+            path: sampleSegmentPath(step.path),
             instruction: step.instructions.replace(/<[^>]*>?/gm, '')
           });
 
@@ -535,6 +544,12 @@ function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
 
   useEffect(() => {
      if (!isNavigating || !geometryLib || segmentsRef.current.length === 0 || !destination) return;
+
+     const now = Date.now();
+     if (now - lastProgressUpdateRef.current < ROUTE_PROGRESS_UPDATE_MS) {
+        return;
+     }
+     lastProgressUpdateRef.current = now;
 
      let closestDist = Infinity;
      let currentInstruction = segmentsRef.current[0].instruction;
