@@ -37,6 +37,105 @@ const UTD_LOTS = [
 
 const USER_LOCATION = { lat: 32.9805, lng: -96.7505 };
 
+function LiveUserTracker({ isNavigating, onLocationUpdate }) {
+  const map = useMap();
+  const geometryLib = useMapsLibrary("geometry");
+  const markerRef = useRef(null);
+  const lastPosRef = useRef(USER_LOCATION);
+  const onUpdateRef = useRef(onLocationUpdate);
+
+  useEffect(() => {
+    onUpdateRef.current = onLocationUpdate;
+  }, [onLocationUpdate]);
+
+  useEffect(() => {
+    if (!map) return;
+    markerRef.current = new window.google.maps.Marker({
+      map,
+      zIndex: 9999,
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 7,
+        fillColor: "#5ee7ff",
+        fillOpacity: 0.9,
+        strokeColor: "#5ee7ff",
+        strokeWeight: 2,
+        strokeOpacity: 0.4,
+        rotation: 0
+      }
+    });
+    return () => {
+      if (markerRef.current) markerRef.current.setMap(null);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    if (!markerRef.current) return;
+    const icon = markerRef.current.getIcon();
+    if (isNavigating) {
+      icon.path = window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW;
+      icon.scale = 6;
+      icon.strokeColor = "#000";
+      icon.strokeOpacity = 1;
+    } else {
+      icon.path = window.google.maps.SymbolPath.CIRCLE;
+      icon.scale = 7;
+      icon.strokeColor = "#5ee7ff";
+      icon.strokeOpacity = 0.4;
+      icon.rotation = 0;
+    }
+    markerRef.current.setIcon(icon);
+  }, [isNavigating]);
+
+  useEffect(() => {
+    if (!navigator.geolocation || !markerRef.current) return;
+    
+    // Quick initial ping
+    navigator.geolocation.getCurrentPosition((pos) => {
+       const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+       lastPosRef.current = newPos;
+       if (markerRef.current) markerRef.current.setPosition(newPos);
+       onUpdateRef.current(newPos);
+    }, () => {}, { enableHighAccuracy: true });
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const oldPos = lastPosRef.current;
+        if (markerRef.current) {
+          markerRef.current.setPosition(newPos);
+
+          let heading = markerRef.current.getIcon()?.rotation || 0;
+          if (pos.coords.heading !== null && (!isNaN(pos.coords.heading)) && pos.coords.heading !== 0) {
+            heading = pos.coords.heading;
+          } else if (geometryLib && oldPos) {
+             const calcHead = geometryLib.spherical.computeHeading(oldPos, newPos);
+             if (geometryLib.spherical.computeDistanceBetween(oldPos, newPos) > 1) { 
+                heading = calcHead;
+             }
+          }
+
+          if (isNavigating) {
+             const icon = markerRef.current.getIcon();
+             icon.rotation = heading;
+             markerRef.current.setIcon(icon);
+             if (map) map.panTo(newPos);
+          }
+        }
+
+        lastPosRef.current = newPos;
+        onUpdateRef.current(newPos);
+      },
+      (err) => console.log(err),
+      { enableHighAccuracy: true, maximumAge: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [map, geometryLib, isNavigating]);
+
+  return null;
+}
+
 function LotMarkers({ onSelectLot, selectedLotId, isNavigating }) {
   const map = useMap();
   const markersRef = useRef([]);
@@ -51,47 +150,37 @@ function LotMarkers({ onSelectLot, selectedLotId, isNavigating }) {
       // Hide other lots when actively navigating
       if (isNavigating && selectedLotId !== lot.id) return;
 
+      const isVacant = lot.vacant;
+      const svgColor = "%2300d0ff";       // All lots get the cyan stroke
+      const svgShadow = isVacant ? "%2300d0ff" : "%23005a70"; // Non-vacant get a darker cyan shadow
+      const svgFill = "%230d0f1a";        // Base dark map color
+      
+      const pinSvg = `data:image/svg+xml;charset=UTF-8,%3Csvg width='48' height='64' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 64'%3E%3Cellipse cx='24' cy='60' rx='16' ry='4' fill='${svgShadow}' /%3E%3Cpath d='M24 58 C8 40 4 30 4 22 A20 20 0 1 1 44 22 C44 30 40 40 24 58 Z' fill='${svgFill}' stroke='${svgColor}' stroke-width='3' /%3E%3Ccircle cx='24' cy='22' r='8' fill='none' stroke='${svgColor}' stroke-width='1.5' opacity='0.6' /%3E%3Ccircle cx='24' cy='22' r='13' fill='none' stroke='${svgColor}' stroke-width='0.5' opacity='0.4' /%3E%3C/svg%3E`;
+
+      const scaleW = isVacant ? 36 : 24;
+      const scaleH = isVacant ? 48 : 32;
+
       const marker = new window.google.maps.Marker({
         position: { lat: lot.lat, lng: lot.lng },
         map,
         label: {
           text: lot.name,
-          color: lot.vacant ? "#5ee7ff" : "#555A66",
+          color: isVacant ? "#5ee7ff" : "rgba(94, 231, 255, 0.7)",
           fontSize: "10px",
           fontWeight: "700",
-          className: "marker-label", // allow CSS styling if needed
+          className: "marker-label", 
         },
         icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: lot.vacant ? 6 : 4,
-          fillColor: lot.vacant ? "#00d0ff" : "#1A1D24",
-          fillOpacity: lot.vacant ? 0.8 : 0.4,
-          strokeColor: lot.vacant ? "#5ee7ff" : "#2E3440",
-          strokeWeight: lot.vacant ? 2 : 1,
-          strokeOpacity: lot.vacant ? 1 : 0.6,
+          url: pinSvg,
+          scaledSize: new window.google.maps.Size(scaleW, scaleH),
+          anchor: new window.google.maps.Point(scaleW / 2, scaleH),
+          labelOrigin: new window.google.maps.Point(scaleW / 2, -10)
         },
       });
 
       marker.addListener("click", () => onSelectLot(lot));
       markersRef.current.push(marker);
     });
-
-    // User location marker
-    const userMarker = new window.google.maps.Marker({
-      position: USER_LOCATION,
-      map,
-      icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        scale: 7,
-        fillColor: "#5ee7ff",
-        fillOpacity: 0.9,
-        strokeColor: "#5ee7ff",
-        strokeWeight: 2,
-        strokeOpacity: 0.4,
-      },
-      zIndex: 999,
-    });
-    markersRef.current.push(userMarker);
 
     return () => {
       markersRef.current.forEach((m) => m.setMap(null));
@@ -101,15 +190,20 @@ function LotMarkers({ onSelectLot, selectedLotId, isNavigating }) {
   return null;
 }
 
-function RouteOverlay({ destination, onRouteInfo, isNavigating }) {
+function RouteOverlay({ origin, destination, onRouteInfo, isNavigating }) {
   const map = useMap();
   const routesLib = useMapsLibrary("routes");
+  const geometryLib = useMapsLibrary("geometry");
   const polylinesRef = useRef([]);
+  const segmentsRef = useRef([]);
+  const entireDistanceRef = useRef(1);
+  const baseDurationRef = useRef({ val: 0, text: "" });
 
   useEffect(() => {
-    if (!routesLib || !map || !destination) {
+    if (!routesLib || !map || !destination || !geometryLib) {
       polylinesRef.current.forEach((p) => p.setMap(null));
       polylinesRef.current = [];
+      segmentsRef.current = [];
       if (!destination && onRouteInfo) onRouteInfo(null);
       // Reset map zoom when route clears
       if (!isNavigating && map) {
@@ -122,36 +216,48 @@ function RouteOverlay({ destination, onRouteInfo, isNavigating }) {
     const svc = new routesLib.DirectionsService();
     svc.route(
       {
-        origin: USER_LOCATION,
+        origin: origin,
         destination: { lat: destination.lat, lng: destination.lng },
         travelMode: window.google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: true,
         drivingOptions: { departureTime: new Date(), trafficModel: "bestguess" },
       },
       (response, status) => {
-        if (status !== "OK" || !response.routes[0]) return;
+        if (status !== "OK" || !response.routes || response.routes.length === 0) return;
 
         polylinesRef.current.forEach((p) => p.setMap(null));
-        const newLines = [];
-        const route = response.routes[0];
+        polylinesRef.current = [];
+        
+        // Find the absolute fastest route among alternatives based on live traffic
+        let fastestRoute = response.routes[0];
+        let minDuration = Infinity;
+
+        response.routes.forEach((rt) => {
+          const l = rt.legs[0];
+          const dur = l.duration_in_traffic ? l.duration_in_traffic.value : l.duration.value;
+          if (dur < minDuration) {
+            minDuration = dur;
+            fastestRoute = rt;
+          }
+        });
+
+        const route = fastestRoute;
         const leg = route.legs[0];
+        const newLines = [];
+        const segments = [];
 
-        // Zoom map to show entire route once navigation starts
-        if (isNavigating) {
-           map.fitBounds(route.bounds);
-           // Slightly offset padding to account for the UI panels
-           map.panBy(0, 50); 
-        }
-
-        if (onRouteInfo) {
-          onRouteInfo({
-            distanceText: leg.distance.text, // e.g. "1.2 mi"
-            distanceValue: leg.distance.value,
-            durationSeconds: leg.duration_in_traffic ? leg.duration_in_traffic.value : leg.duration.value,
-            durationText: leg.duration_in_traffic ? leg.duration_in_traffic.text : leg.duration.text
-          });
-        }
+        entireDistanceRef.current = leg.distance.value;
+        baseDurationRef.current = {
+            val: leg.duration_in_traffic ? leg.duration_in_traffic.value : leg.duration.value,
+            text: leg.duration_in_traffic ? leg.duration_in_traffic.text : leg.duration.text
+        };
 
         leg.steps.forEach((step) => {
+          segments.push({
+            path: step.path,
+            instruction: step.instructions.replace(/<[^>]*>?/gm, '')
+          });
+
           const speed = step.distance.value / step.duration.value;
           const isTraffic = speed < 5;
           const color = isTraffic ? "#4effa0" : "#5ee7ff"; // Mint green for traffic, Cyan for normal
@@ -160,27 +266,84 @@ function RouteOverlay({ destination, onRouteInfo, isNavigating }) {
             new window.google.maps.Polyline({
               path: step.path,
               strokeColor: color,
-              strokeOpacity: 0.15, // Reduced from 0.2 to prevent blowing out the map
-              strokeWeight: 8,     // Reduced from 12 for a tighter glow
+              strokeOpacity: 0.15, 
+              strokeWeight: 8,     
               map,
             }),
             new window.google.maps.Polyline({
               path: step.path,
               strokeColor: color,
-              strokeOpacity: 0.8,  // Made core slightly more solid
+              strokeOpacity: 0.8,  
               strokeWeight: 4,
               map,
             })
           );
         });
         polylinesRef.current = newLines;
+        segmentsRef.current = segments;
+
+        if (!isNavigating) {
+           // PREVIEW MODE: Zoom map to show entire route
+           map.fitBounds(route.bounds);
+           const isMobile = window.innerWidth <= 768;
+           map.panBy(0, isMobile ? -120 : 50); 
+
+           if (onRouteInfo) {
+             onRouteInfo({
+               distanceText: leg.distance.text,
+               distanceValue: leg.distance.value,
+               durationSeconds: baseDurationRef.current.val,
+               durationText: baseDurationRef.current.text,
+               instruction: "Calculating...",
+               progress: 0
+             });
+           }
+        } else {
+           // ACTIVE NAVIGATION MODE
+           map.setZoom(19);
+        }
       }
     );
 
     return () => {
       polylinesRef.current.forEach((p) => p.setMap(null));
     };
-  }, [routesLib, map, destination, isNavigating]);
+  }, [routesLib, geometryLib, map, destination]); // Excluding "origin" and "isNavigating" explicitly to prevent re-query loop.
+
+  // Realtime tracker for Instruction & Progress Updates against physical geography
+  useEffect(() => {
+     if (!isNavigating || !geometryLib || segmentsRef.current.length === 0 || !destination) return;
+
+     let closestDist = Infinity;
+     let currentInstruction = segmentsRef.current[0].instruction;
+     
+     segmentsRef.current.forEach(seg => {
+        // Sample down polyline points for fast evaluation
+        for (let i = 0; i < seg.path.length; i += 3) { 
+           const pt = seg.path[i];
+           const dist = geometryLib.spherical.computeDistanceBetween(origin, pt);
+           if (dist < closestDist) {
+               closestDist = dist;
+               currentInstruction = seg.instruction;
+           }
+        }
+     });
+
+     const distRemaining = geometryLib.spherical.computeDistanceBetween(origin, { lat: destination.lat, lng: destination.lng });
+     let progress = 100 - ((distRemaining / Math.max(1, entireDistanceRef.current)) * 100);
+     progress = Math.max(0, Math.min(100, progress));
+
+     if (onRouteInfo) {
+        onRouteInfo({
+            distanceText: (distRemaining * 0.000621371).toFixed(1) + " mi",
+            distanceValue: distRemaining,
+            durationSeconds: baseDurationRef.current.val,
+            durationText: baseDurationRef.current.text,
+            instruction: currentInstruction,
+            progress: progress
+        });
+     }
+  }, [origin, isNavigating, geometryLib, destination]);
 
   return null;
 }
@@ -189,6 +352,7 @@ export default function MapPane() {
   const [selectedLot, setSelectedLot] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [liveLocation, setLiveLocation] = useState(USER_LOCATION);
 
   const handleSelectLot = (lot) => {
     // Prevent changing destination if currently navigating
@@ -212,11 +376,11 @@ export default function MapPane() {
         defaultZoom={15.5}
         disableDefaultUI={true}
         styles={mapStyles}
-        restriction={{ latLngBounds: UTD_BOUNDS, strictBounds: false }}
         style={{ width: "100%", height: "100%" }}
       >
+        <LiveUserTracker isNavigating={isNavigating} onLocationUpdate={setLiveLocation} />
         <LotMarkers onSelectLot={handleSelectLot} selectedLotId={selectedLot?.id} isNavigating={isNavigating} />
-        <RouteOverlay destination={selectedLot} onRouteInfo={setRouteInfo} isNavigating={isNavigating} />
+        <RouteOverlay origin={liveLocation} destination={selectedLot} onRouteInfo={setRouteInfo} isNavigating={isNavigating} />
       </Map>
 
       {/* Show LocationPanel (Journey Start) when a lot is selected but not yet navigating */}
@@ -235,6 +399,8 @@ export default function MapPane() {
       {/* Show TripInfoCard (Navigation Panel) when actively navigating to the selected lot */}
       {selectedLot && isNavigating && routeInfo && (
         <TripInfoCard
+          instruction={routeInfo.instruction}
+          progress={routeInfo.progress}
           initialSeconds={routeInfo.durationSeconds}
           distance={parseFloat(routeInfo.distanceText.replace(/[^\d.-]/g, ''))}
           destination={selectedLot.name}
