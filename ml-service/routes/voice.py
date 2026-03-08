@@ -5,7 +5,6 @@ import re
 from flask import Blueprint, jsonify, request
 
 from model.formula import AFFINITY, BUILDING_CODE_MAP, compute_lot_pressure
-from model.gemini import get_parking_recommendation
 from services.permits import filter_ranked_lots_for_permit
 from services.predictions import build_calibrated_ranked_lots
 from services.voice import speech_to_text, synthesize_speech_bytes
@@ -480,7 +479,6 @@ def voice_chat():
             weather_multiplier,
         )
 
-        gemini_output = get_parking_recommendation(formula_output)
         ranked_lots = build_calibrated_ranked_lots(formula_output)
         reranked_lots = _rerank_for_destination(ranked_lots, destination_key) if destination_key else ranked_lots
         reranked_lots = filter_ranked_lots_for_permit(reranked_lots, permit_id)
@@ -525,8 +523,5 @@ def voice_chat():
         "audio_base64": base64.b64encode(audio).decode("utf-8"),
         "mime_type": "audio/mpeg",
     }
-
-    if not awaiting_confirmation and "error" in gemini_output:
-        response["gemini_error"] = gemini_output["error"]
 
     return jsonify(response)
