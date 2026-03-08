@@ -10,13 +10,28 @@ function blobToBase64(blob) {
   });
 }
 
+function getPreferredMimeType() {
+  if (typeof MediaRecorder === "undefined") {
+    return "";
+  }
+
+  const candidates = [
+    "audio/mp4",
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+
+  return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
+}
+
 export function recordVoiceClip(durationMs = 3200) {
   return new Promise((resolve, reject) => {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "";
+      const mimeType = getPreferredMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       const chunks = [];
 
@@ -32,12 +47,13 @@ export function recordVoiceClip(durationMs = 3200) {
 
       recorder.onstop = async () => {
         try {
-          const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const resolvedMimeType = recorder.mimeType || mimeType || chunks[0]?.type || "audio/webm";
+          const blob = new Blob(chunks, { type: resolvedMimeType });
           const audioBase64 = await blobToBase64(blob);
           stream.getTracks().forEach((track) => track.stop());
           resolve({
             audioBase64,
-            mimeType: blob.type || "audio/webm",
+            mimeType: blob.type || resolvedMimeType,
           });
         } catch (error) {
           reject(error);

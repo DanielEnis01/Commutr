@@ -397,10 +397,10 @@ def speak_text():
     try:
         audio = synthesize_speech_bytes(text)
     except RuntimeError as exc:
-        print(f"[voice.speak] runtime error: {exc}")
+        print(f"[voice.speak] runtime error: {exc}", flush=True)
         return jsonify({"error": str(exc)}), 503
     except Exception as exc:
-        print(f"[voice.speak] synthesis failed: {exc}")
+        print(f"[voice.speak] synthesis failed: {exc}", flush=True)
         return jsonify({"error": f"Text-to-speech failed: {exc}"}), 502
 
     return jsonify({
@@ -432,10 +432,10 @@ def voice_chat():
     try:
         transcript = speech_to_text((_filename_for_mime_type(mime_type), audio_bytes, mime_type))
     except RuntimeError as exc:
-        print(f"[voice.chat] runtime error: {exc}")
+        print(f"[voice.chat] runtime error for mime_type={mime_type}: {exc}", flush=True)
         return jsonify({"error": str(exc)}), 503
     except Exception as exc:
-        print(f"[voice.chat] speech-to-text failed for mime_type={mime_type}: {exc}")
+        print(f"[voice.chat] speech-to-text failed for mime_type={mime_type}: {exc}", flush=True)
         return jsonify({"error": f"Speech-to-text failed: {exc}"}), 502
 
     awaiting_confirmation = bool(voice_context.get("awaiting_confirmation"))
@@ -500,10 +500,10 @@ def voice_chat():
     try:
         audio = synthesize_speech_bytes(voice_text)
     except RuntimeError as exc:
-        print(f"[voice.chat] tts runtime error: {exc}")
+        print(f"[voice.chat] tts runtime error: {exc}", flush=True)
         return jsonify({"error": str(exc)}), 503
     except Exception as exc:
-        print(f"[voice.chat] tts failed: {exc}")
+        print(f"[voice.chat] tts failed: {exc}", flush=True)
         return jsonify({"error": f"Text-to-speech failed: {exc}"}), 502
 
     response = {
