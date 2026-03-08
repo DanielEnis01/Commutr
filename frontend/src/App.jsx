@@ -10,14 +10,13 @@ export default function App() {
           display: "flex",
           height: "100vh",
           width: "100vw",
+          background: "#0d0f1a",
         }}
       >
         <div style={{ flex: 1 }}>
           <MapPane />
         </div>
-        <div style={{ width: 360, flexShrink: 0 }}>
-          <SidePanel />
-        </div>
+        <SidePanel />
       </div>
     </APIProvider>
   );
