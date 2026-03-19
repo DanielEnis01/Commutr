@@ -19,7 +19,13 @@ def health():
     return jsonify({"status": "ok", "service": "ml"})
 
 
+@app.route("/api/health")
+def api_health():
+    return jsonify({"status": "ok", "service": "ml"})
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", os.getenv("ML_PORT", 5002)))
     debug = os.getenv("FLASK_DEBUG", "").lower() in {"1", "true", "yes"}
+    print(f"[ML Service] Starting on 0.0.0.0:{port} debug={debug}", flush=True)
     app.run(host="0.0.0.0", port=port, debug=debug)

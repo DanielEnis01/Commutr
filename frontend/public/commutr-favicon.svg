@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Commutr favicon">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#083344"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path d="M18 38c0-8.837 6.268-16 14-16s14 7.163 14 16" fill="none" stroke="#f8fafc" stroke-linecap="round" stroke-width="5"/>
+  <circle cx="24" cy="42" r="4" fill="#f59e0b"/>
+  <circle cx="40" cy="42" r="4" fill="#f59e0b"/>
+  <path d="M22 38h20" stroke="#f8fafc" stroke-linecap="round" stroke-width="4"/>
+</svg>

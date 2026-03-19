@@ -25,7 +25,8 @@ def predict_all():
         f"campus_time={campus_query_time or 'unknown'} "
         f"active={len(classes.get('currently_active', []))} "
         f"starting={len(classes.get('starting_soon', []))} "
-        f"ended={len(classes.get('recently_ended', []))}"
+        f"ended={len(classes.get('recently_ended', []))}",
+        flush=True,
     )
     
     formula_output = compute_lot_pressure(
