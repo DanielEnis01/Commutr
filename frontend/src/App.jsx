@@ -7,9 +7,19 @@ import MobileBottomBar from "./components/Panel/MobileBottomBar";
 import { speakText, submitVoiceChat } from "./services/api";
 import { ensureMicrophoneAccess, recordVoiceClip, releaseMicrophoneAccess } from "./services/voiceRecorder";
 
+function getPermissionStateLabel(status, fallback = "prompt") {
+  if (status === "granted" || status === "denied" || status === "prompt") {
+    return status;
+  }
+  return fallback;
+}
+
 export default function App() {
   const [selectedPermit, setSelectedPermit] = useState(null);
   const [mode, setMode] = useState("manual");
+  const [locationPermission, setLocationPermission] = useState("prompt");
+  const [locationGateComplete, setLocationGateComplete] = useState(false);
+  const [voicePermission, setVoicePermission] = useState("prompt");
   const [navigationRequest, setNavigationRequest] = useState(null);
   const [navigationState, setNavigationState] = useState({
     isNavigating: false,
@@ -29,17 +39,84 @@ export default function App() {
   const autoListenTimeoutRef = useRef(null);
   const lastSpokenInstructionRef = useRef("");
   const voiceConversationRef = useRef(null);
-  const wakeRecognitionRef = useRef(null);
-  const isWakeRecognitionStartingRef = useRef(false);
-  const suppressWakeWordRef = useRef(false);
   const autoListenAfterAudioRef = useRef(false);
   const pendingNavigationStartRef = useRef(null);
   const voiceInteractionLockRef = useRef(false);
-  const micPermissionPrimedRef = useRef(false);
   const modeRef = useRef(mode);
   const voiceBusyRef = useRef(voiceState.busy);
   const navigationStateRef = useRef(navigationState);
   const voicePlaybackActiveRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let locationPermissionStatus = null;
+    let microphonePermissionStatus = null;
+
+    async function syncPermissions() {
+      if (!navigator.permissions?.query) {
+        if (!cancelled) {
+          setLocationPermission(navigator.geolocation ? "prompt" : "unsupported");
+          setVoicePermission(navigator.mediaDevices?.getUserMedia ? "prompt" : "unsupported");
+        }
+        return;
+      }
+
+      try {
+        if (navigator.geolocation) {
+          locationPermissionStatus = await navigator.permissions.query({ name: "geolocation" });
+          if (!cancelled) {
+            const nextState = getPermissionStateLabel(locationPermissionStatus.state);
+            setLocationPermission(nextState);
+            if (nextState === "granted") {
+              setLocationGateComplete(true);
+            }
+          }
+          locationPermissionStatus.onchange = () => {
+            setLocationPermission(getPermissionStateLabel(locationPermissionStatus.state));
+            if (locationPermissionStatus.state === "granted") {
+              setLocationGateComplete(true);
+            }
+          };
+        } else if (!cancelled) {
+          setLocationPermission("unsupported");
+        }
+      } catch {
+        if (!cancelled) {
+          setLocationPermission(navigator.geolocation ? "prompt" : "unsupported");
+        }
+      }
+
+      try {
+        if (navigator.mediaDevices?.getUserMedia) {
+          microphonePermissionStatus = await navigator.permissions.query({ name: "microphone" });
+          if (!cancelled) {
+            setVoicePermission(getPermissionStateLabel(microphonePermissionStatus.state));
+          }
+          microphonePermissionStatus.onchange = () => {
+            setVoicePermission(getPermissionStateLabel(microphonePermissionStatus.state));
+          };
+        } else if (!cancelled) {
+          setVoicePermission("unsupported");
+        }
+      } catch {
+        if (!cancelled) {
+          setVoicePermission(navigator.mediaDevices?.getUserMedia ? "prompt" : "unsupported");
+        }
+      }
+    }
+
+    syncPermissions();
+
+    return () => {
+      cancelled = true;
+      if (locationPermissionStatus) {
+        locationPermissionStatus.onchange = null;
+      }
+      if (microphonePermissionStatus) {
+        microphonePermissionStatus.onchange = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     voiceConversationRef.current = voiceConversation;
@@ -156,7 +233,6 @@ export default function App() {
     }
     const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
     audioRef.current = audio;
-    suppressWakeWordRef.current = true;
     autoListenAfterAudioRef.current = Boolean(options.autoListenAfterAudio);
     setVoicePlaybackActive(true);
     let finished = false;
@@ -167,7 +243,6 @@ export default function App() {
       voicePlaybackActiveRef.current = false;
       setVoicePlaybackActive(false);
       voiceInteractionLockRef.current = false;
-      suppressWakeWordRef.current = false;
       const pendingNavigation = pendingNavigationStartRef.current;
       pendingNavigationStartRef.current = null;
       if (pendingNavigation) {
@@ -217,58 +292,39 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return undefined;
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .slice(event.resultIndex)
-        .map((result) => result[0]?.transcript || "")
-        .join(" ")
-        .toLowerCase();
-
-      if (suppressWakeWordRef.current) return;
-      if (transcript.includes("hey commuter") && !voiceBusyRef.current && !voiceInteractionLockRef.current) {
-        suppressWakeWordRef.current = true;
-        setMode("voice");
-        handleVoiceTrigger({ source: "wake-word" });
-      }
-    };
-
-    recognition.onend = () => {
-      isWakeRecognitionStartingRef.current = false;
-      if (!wakeRecognitionRef.current) return;
-      if (document.visibilityState !== "visible") return;
-      if (suppressWakeWordRef.current) {
-        window.setTimeout(() => wakeRecognitionRef.current?.start(), 1200);
-      } else {
-        window.setTimeout(() => wakeRecognitionRef.current?.start(), 250);
-      }
-    };
-
-    recognition.onerror = () => {
-      isWakeRecognitionStartingRef.current = false;
-    };
-
-    wakeRecognitionRef.current = recognition;
-
-    if (!isWakeRecognitionStartingRef.current) {
-      isWakeRecognitionStartingRef.current = true;
-      recognition.start();
+  const requestLocationPermission = async () => {
+    if (!navigator.geolocation) {
+      setLocationPermission("unsupported");
+      setLocationGateComplete(true);
+      return false;
     }
 
-    return () => {
-      wakeRecognitionRef.current = null;
-      recognition.onend = null;
-      recognition.stop();
-    };
-  }, [voiceState.busy]);
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          setLocationPermission("granted");
+          setLocationGateComplete(true);
+          resolve(true);
+        },
+        () => {
+          setLocationPermission("denied");
+          resolve(false);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    });
+  };
+
+  const requestVoicePermission = async () => {
+    try {
+      await ensureMicrophoneAccess();
+      setVoicePermission("granted");
+      return true;
+    } catch {
+      setVoicePermission("denied");
+      return false;
+    }
+  };
 
   const handleVoiceTrigger = async ({ source = "manual" } = {}) => {
     try {
@@ -286,13 +342,21 @@ export default function App() {
       }
       voiceInteractionLockRef.current = true;
       if (source !== "manual" && mode !== "voice") setMode("voice");
+      if (voicePermission !== "granted") {
+        const granted = await requestVoicePermission();
+        if (!granted) {
+          voiceInteractionLockRef.current = false;
+          setVoiceState((current) => ({
+            ...current,
+            busy: false,
+            message: "Microphone access is required to use voice guidance",
+          }));
+          return;
+        }
+      }
 
       const currentConversation = voiceConversationRef.current;
       if (!currentConversation && source !== "handsfree") {
-        if (!micPermissionPrimedRef.current) {
-          await ensureMicrophoneAccess();
-          micPermissionPrimedRef.current = true;
-        }
         await startVoicePrompt();
         return;
       }
@@ -397,7 +461,15 @@ export default function App() {
   };
 
   if (!selectedPermit) {
-    return <PermitLanding onSelectPermit={setSelectedPermit} />;
+    return (
+      <PermitLanding
+        onSelectPermit={setSelectedPermit}
+        locationPermission={locationPermission}
+        locationGateComplete={locationGateComplete}
+        onRequestLocationAccess={requestLocationPermission}
+        onSkipLocationAccess={() => setLocationGateComplete(true)}
+      />
+    );
   }
 
   return (
@@ -405,6 +477,7 @@ export default function App() {
       <div className="app-layout">
         <div className="map-container">
           <MapPane
+            locationEnabled={locationPermission === "granted"}
             navigationRequest={navigationRequest}
             onNavigationStarted={() => setNavigationRequest(null)}
             onNavigationUpdate={handleNavigationUpdate}
@@ -429,13 +502,22 @@ export default function App() {
               resetAppStateForPermitSelection();
               setSelectedPermit(null);
             }}
+            voicePermission={voicePermission}
+            onRequestVoicePermission={requestVoicePermission}
           />
         </div>
         <MobileBottomBar
           message={voiceState.message}
           voiceBusy={voiceState.busy || voicePlaybackActive}
-          onMicClick={() => {
+          onMicClick={async () => {
             setMode("voice");
+            if (voicePermission !== "granted") {
+              const granted = await requestVoicePermission();
+              if (granted) {
+                handleVoiceTrigger({ source: "mobile-mic" });
+              }
+              return;
+            }
             handleVoiceTrigger({ source: "mobile-mic" });
           }}
           chatMessages={voiceChatMessages}

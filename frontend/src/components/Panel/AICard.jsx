@@ -17,7 +17,7 @@ export default function AICard({ loading, tts, reason, mode, chatMessages, liste
             <div className="voice-chat-feed">
               {recentMessages.length === 0 ? (
                 <div className="voice-chat-empty">
-                  Voice chat is ready. Say "hey commuter" or tap the mic to start.
+                  Voice chat is ready. Tap the mic when you want Commutr to listen.
                 </div>
               ) : (
                 recentMessages.map((message) => (
@@ -33,7 +33,7 @@ export default function AICard({ loading, tts, reason, mode, chatMessages, liste
                 ))
               )}
               <div className="voice-chat-status">
-                {isNavigating ? "Route guidance is active." : listening ? "Listening now..." : "Say hey commuter, confirm, or switch to lot."}
+                {isNavigating ? "Route guidance is active." : listening ? "Listening now..." : "Tap the mic, then confirm or switch lots."}
               </div>
             </div>
           ) : loading ? (

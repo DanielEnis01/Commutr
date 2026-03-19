@@ -186,7 +186,7 @@ function navigationReducer(state, action) {
   }
 }
 
-function LiveUserTracker({ isNavigating, trackedLocation, cameraLocked, onLocationUpdate }) {
+function LiveUserTracker({ enabled, isNavigating, trackedLocation, cameraLocked, onLocationUpdate }) {
   const map = useMap();
   const geometryLib = useMapsLibrary("geometry");
   const markerRef = useRef(null);
@@ -222,10 +222,13 @@ function LiveUserTracker({ isNavigating, trackedLocation, cameraLocked, onLocati
 
   useEffect(() => {
     if (!markerRef.current) return;
-    if (trackedLocation) {
+    if (enabled && trackedLocation) {
       markerRef.current.setPosition(trackedLocation);
+      markerRef.current.setVisible(true);
+    } else {
+      markerRef.current.setVisible(false);
     }
-  }, [trackedLocation]);
+  }, [trackedLocation, enabled]);
 
   useEffect(() => {
     if (!markerRef.current) return;
@@ -246,7 +249,7 @@ function LiveUserTracker({ isNavigating, trackedLocation, cameraLocked, onLocati
   }, [isNavigating]);
 
   useEffect(() => {
-    if (!navigator.geolocation || !markerRef.current) return;
+    if (!enabled || !navigator.geolocation || !markerRef.current) return;
 
     const applyPosition = (pos) => {
       const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -342,7 +345,7 @@ function LiveUserTracker({ isNavigating, trackedLocation, cameraLocked, onLocati
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [map, geometryLib, isNavigating, trackedLocation, cameraLocked]);
+  }, [map, geometryLib, isNavigating, trackedLocation, cameraLocked, enabled]);
 
   return null;
 }
@@ -625,7 +628,7 @@ function RecenterControl({ liveLocation, isNavigating, cameraLocked, onToggleLoc
   );
 }
 
-export default function MapPane({ navigationRequest, onNavigationStarted, onNavigationUpdate }) {
+export default function MapPane({ locationEnabled, navigationRequest, onNavigationStarted, onNavigationUpdate }) {
   const [navState, dispatch] = useReducer(navigationReducer, {
     selectedLotId: null,
     routeInfo: null,
@@ -709,37 +712,42 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
         onDragstart={() => setCameraLocked(false)}
       >
         <LiveUserTracker
+          enabled={locationEnabled}
           isNavigating={isNavigating}
           trackedLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation}
           cameraLocked={cameraLocked}
           onLocationUpdate={setLiveLocation}
         />
         <LotMarkers onSelectLot={handleSelectLot} selectedLotId={selectedLot?.id} isNavigating={isNavigating} />
-        <RouteOverlay
-          origin={liveLocation}
-          destination={selectedLot}
-          onRouteInfo={(nextRouteInfo) => {
-            if (nextRouteInfo?.snappedLocation) {
-              setSnappedLocation(nextRouteInfo.snappedLocation);
-            }
-            dispatch({
-              type: "set_route_info",
-              routeInfo: nextRouteInfo
-                ? {
-                    ...nextRouteInfo,
-                    snappedLocation: undefined,
-                  }
-                : nextRouteInfo,
-            });
-          }}
-          isNavigating={isNavigating}
-        />
-        <RecenterControl
-          liveLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation}
-          isNavigating={isNavigating}
-          cameraLocked={cameraLocked}
-          onToggleLock={(nextLocked) => setCameraLocked(nextLocked)}
-        />
+        {locationEnabled && (
+          <>
+            <RouteOverlay
+              origin={liveLocation}
+              destination={selectedLot}
+              onRouteInfo={(nextRouteInfo) => {
+                if (nextRouteInfo?.snappedLocation) {
+                  setSnappedLocation(nextRouteInfo.snappedLocation);
+                }
+                dispatch({
+                  type: "set_route_info",
+                  routeInfo: nextRouteInfo
+                    ? {
+                        ...nextRouteInfo,
+                        snappedLocation: undefined,
+                      }
+                    : nextRouteInfo,
+                });
+              }}
+              isNavigating={isNavigating}
+            />
+            <RecenterControl
+              liveLocation={isNavigating && snappedLocation ? snappedLocation : liveLocation}
+              isNavigating={isNavigating}
+              cameraLocked={cameraLocked}
+              onToggleLock={(nextLocked) => setCameraLocked(nextLocked)}
+            />
+          </>
+        )}
       </Map>
 
       {!mapLoaded && (
@@ -749,7 +757,7 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
         </div>
       )}
 
-      {selectedLot && !isNavigating && (
+      {locationEnabled && selectedLot && !isNavigating && (
         <LocationPanel 
           locationName={selectedLot.name}
           address="UT-Dallas Campus"
@@ -764,7 +772,7 @@ export default function MapPane({ navigationRequest, onNavigationStarted, onNavi
         />
       )}
 
-      {selectedLot && isNavigating && routeInfo && (
+      {locationEnabled && selectedLot && isNavigating && routeInfo && (
         <TripInfoCard
           instruction={routeInfo.instruction}
           progress={routeInfo.progress}

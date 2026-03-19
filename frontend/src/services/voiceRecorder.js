@@ -10,8 +10,6 @@ function blobToBase64(blob) {
   });
 }
 
-let sharedMicStreamPromise = null;
-
 function getPreferredMimeType() {
   if (typeof MediaRecorder === "undefined") {
     return "";
@@ -85,24 +83,19 @@ export async function ensureMicrophoneAccess() {
     throw new Error("Microphone access is not supported on this device");
   }
 
-  if (!sharedMicStreamPromise) {
-    sharedMicStreamPromise = navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
-  }
-
-  return sharedMicStreamPromise;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  });
+  stream.getTracks().forEach((track) => track.stop());
+  return true;
 }
 
 export async function releaseMicrophoneAccess() {
-  if (!sharedMicStreamPromise) return;
-  const stream = await sharedMicStreamPromise.catch(() => null);
-  stream?.getTracks().forEach((track) => track.stop());
-  sharedMicStreamPromise = null;
+  return undefined;
 }
 
 async function recordVoiceClipWithMediaRecorder(stream, durationMs) {
@@ -205,18 +198,31 @@ async function recordVoiceClipWithWav(stream, durationMs) {
 }
 
 export async function recordVoiceClip(durationMs = 3200) {
-  const stream = await ensureMicrophoneAccess();
-
-  try {
-    if (typeof MediaRecorder !== "undefined") {
-      const result = await recordVoiceClipWithMediaRecorder(stream, durationMs);
-      return result;
-    }
-  } catch (error) {
-    if (!(window.AudioContext || window.webkitAudioContext)) {
-      throw error;
-    }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Microphone access is not supported on this device");
   }
 
-  return recordVoiceClipWithWav(stream, durationMs);
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  });
+
+  try {
+    try {
+      if (typeof MediaRecorder !== "undefined") {
+        return await recordVoiceClipWithMediaRecorder(stream, durationMs);
+      }
+    } catch (error) {
+      if (!(window.AudioContext || window.webkitAudioContext)) {
+        throw error;
+      }
+    }
+
+    return await recordVoiceClipWithWav(stream, durationMs);
+  } finally {
+    stream.getTracks().forEach((track) => track.stop());
+  }
 }

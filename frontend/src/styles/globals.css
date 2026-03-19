@@ -17,6 +17,12 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
+.logo-mark {
+  display: block;
+  color: #161a31;
+  flex-shrink: 0;
+}
+
 .permit-landing {
   min-height: 100vh;
   display: flex;
@@ -33,20 +39,44 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   align-items: center;
 }
 
-.permit-landing-title {
-  font-size: clamp(52px, 10vw, 112px);
-  font-weight: 800;
-  letter-spacing: -0.05em;
+.permit-brand-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
   margin-bottom: 12px;
 }
 
-.permit-landing-title .white {
+.permit-brand-lockup.intro {
+  margin-bottom: 28px;
+}
+
+.permit-brand-logo {
+  width: clamp(116px, 13vw, 150px);
+  aspect-ratio: 1 / 1;
+  height: auto;
+  color: #1f2545;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.22)) drop-shadow(0 0 18px rgba(120, 184, 255, 0.08));
+}
+
+.permit-brand-logo.intro {
+  width: clamp(132px, 15vw, 168px);
+}
+
+.permit-landing-title {
+  font-size: clamp(52px, 10vw, 104px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.95;
+}
+
+.permit-landing-title-primary {
   color: white;
 }
 
-.permit-landing-title .accent {
-  color: var(--accent);
-  text-shadow: 0 0 40px rgba(94, 231, 255, 0.35);
+.permit-landing-title-accent {
+  color: #78b8ff;
+  text-shadow: 0 0 22px rgba(120, 184, 255, 0.18);
 }
 
 .permit-landing-subtitle {
@@ -63,6 +93,95 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   color: rgba(255,255,255,0.72);
   margin-bottom: 10px;
   text-align: center;
+}
+
+.permission-gate-card {
+  width: min(560px, 100%);
+  padding: 28px;
+  border-radius: 28px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(18,20,34,0.9), rgba(11,12,24,0.92));
+  box-shadow: 0 24px 80px rgba(0,0,0,0.28);
+  text-align: center;
+}
+
+.permission-gate-card.compact {
+  width: 100%;
+  padding: 22px 20px;
+  border-radius: 22px;
+  text-align: left;
+}
+
+.permission-gate-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(94,231,255,0.82);
+  margin-bottom: 12px;
+}
+
+.permission-gate-title {
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.05;
+  margin-bottom: 12px;
+}
+
+.permission-gate-title.compact {
+  font-size: 24px;
+}
+
+.permission-gate-copy {
+  font-size: 15px;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.72);
+}
+
+.permission-gate-copy.compact {
+  font-size: 14px;
+}
+
+.permission-gate-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.permission-gate-actions.compact {
+  justify-content: flex-start;
+}
+
+.permission-gate-button {
+  border-radius: 9999px;
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.permission-gate-button:hover {
+  transform: translateY(-1px);
+}
+
+.permission-gate-button.primary {
+  border: 1px solid rgba(94,231,255,0.32);
+  background: rgba(94,231,255,0.14);
+  color: #d9f7ff;
+  box-shadow: 0 10px 30px rgba(94,231,255,0.12);
+}
+
+.permission-gate-button.secondary {
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.82);
+}
+
+.permission-gate-note {
+  margin-top: 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.56);
+  line-height: 1.5;
 }
 
 .permit-grid {
@@ -160,12 +279,38 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
 }
 
 .header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.3px;
+  cursor: pointer;
 }
-.header-logo .white { color: #fff; }
-.header-logo .accent { color: var(--accent); }
+
+.header-logo-mark {
+  width: 28px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  color: #2a315a;
+}
+
+.header-logo-text {
+  display: inline-flex;
+  align-items: baseline;
+  color: #fff;
+}
+
+.header-logo-primary {
+  color: #fff;
+}
+
+.header-logo-accent {
+  color: #78b8ff;
+}
 
 .mode-toggle {
   display: flex;
@@ -180,6 +325,11 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.voice-permission-gate {
+  display: flex;
+  flex-direction: column;
 }
 
 .voice-prompt-button {
@@ -940,6 +1090,14 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
 }
 
 @media (max-width: 768px) {
+  .permission-gate-actions {
+    flex-direction: column;
+  }
+
+  .permission-gate-button {
+    width: 100%;
+  }
+
   .permit-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }

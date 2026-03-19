@@ -1,10 +1,15 @@
+import LogoMark from "../Brand/LogoMark";
+
 export default function Header({ mode, onModeChange, onToggleDevTools, devToolsOpen, permitLabel, onChangePermit }) {
   return (
     <div className="header">
-      <div className="header-logo">
-        <span className="white">commut</span>
-        <span className="accent">.r</span>
-      </div>
+      <button className="header-logo" type="button" onClick={onChangePermit}>
+        <LogoMark className="header-logo-mark" />
+        <span className="header-logo-text">
+          <span className="header-logo-primary">Commut</span>
+          <span className="header-logo-accent">.r</span>
+        </span>
+      </button>
 
       <div className="mode-toggle">
         <button

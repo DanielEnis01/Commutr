@@ -88,6 +88,8 @@ export default function SidePanel({
   onToggleDevTools,
   selectedPermit,
   onChangePermit,
+  voicePermission,
+  onRequestVoicePermission,
 }) {
   const [predictions, setPredictions] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -285,6 +287,7 @@ export default function SidePanel({
   ];
 
   const isSimulating = useTimeMachine && activeTime;
+  const showVoicePermissionGate = mode === "voice" && voicePermission !== "granted";
 
   return (
     <div className="sidebar">
@@ -308,7 +311,28 @@ export default function SidePanel({
           />
         )}
 
-        {mode === "voice" ? (
+        {showVoicePermissionGate ? (
+          <div className="voice-permission-gate">
+            <div className="section-label">Voice Guidance</div>
+            <div className="permission-gate-card compact">
+              <div className="permission-gate-eyebrow">Microphone Access</div>
+              <h2 className="permission-gate-title compact">Enable voice only when you want to talk</h2>
+              <p className="permission-gate-copy compact">
+                Commutr will only turn on the microphone while it is actively listening for your next response.
+              </p>
+              <div className="permission-gate-actions compact">
+                <button className="permission-gate-button primary" type="button" onClick={onRequestVoicePermission}>
+                  Allow microphone
+                </button>
+              </div>
+              {voicePermission === "denied" && (
+                <div className="permission-gate-note">
+                  Microphone access is blocked right now. Re-enable it in your browser settings to use voice mode.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : mode === "voice" ? (
           <>
             <div>
               <div className="section-label">Voice Guidance</div>
@@ -336,7 +360,7 @@ export default function SidePanel({
                 <span className="voice-prompt-button-sub">
                   {voiceConversation?.awaiting_confirmation
                     ? "Say confirm or switch to another lot"
-                    : "Ask for a destination or say hey commuter"}
+                    : "Ask for a destination when you are ready"}
                 </span>
               </button>
 

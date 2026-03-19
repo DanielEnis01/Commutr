@@ -1,13 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Commutr favicon">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#083344"/>
-      <stop offset="100%" stop-color="#0f766e"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
-  <path d="M18 38c0-8.837 6.268-16 14-16s14 7.163 14 16" fill="none" stroke="#f8fafc" stroke-linecap="round" stroke-width="5"/>
-  <circle cx="24" cy="42" r="4" fill="#f59e0b"/>
-  <circle cx="40" cy="42" r="4" fill="#f59e0b"/>
-  <path d="M22 38h20" stroke="#f8fafc" stroke-linecap="round" stroke-width="4"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" aria-label="Commutr logo">
+  <circle
+    cx="128"
+    cy="128"
+    r="86"
+    fill="none"
+    stroke="#1f2545"
+    stroke-width="16"
+    stroke-linecap="round"
+    stroke-dasharray="430 140"
+    transform="rotate(36 128 128)"
+  />
+  <circle
+    cx="128"
+    cy="128"
+    r="52"
+    fill="none"
+    stroke="#1f2545"
+    stroke-width="16"
+    stroke-linecap="round"
+    stroke-dasharray="260 110"
+    transform="rotate(42 128 128)"
+  />
+  <circle
+    cx="128"
+    cy="128"
+    r="68"
+    fill="none"
+    stroke="#78b8ff"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-dasharray="118 308"
+    transform="rotate(-18 128 128)"
+  />
+  <circle cx="196" cy="128" r="18" fill="#9ed5ff" />
+  <circle cx="196" cy="128" r="8" fill="#1f2545" />
+  <circle
+    cx="196"
+    cy="128"
+    r="26"
+    fill="none"
+    stroke="#d2ecff"
+    stroke-width="4"
+  />
 </svg>
