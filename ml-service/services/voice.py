@@ -1,6 +1,7 @@
 import os
 import tempfile
 import wave
+from functools import lru_cache
 from io import BytesIO
 
 from dotenv import load_dotenv
@@ -93,7 +94,8 @@ def record_and_transcribe():
     return result
 
 
-def synthesize_speech_bytes(text, voice_id=DEFAULT_VOICE_ID):
+@lru_cache(maxsize=128)
+def _cached_tts_bytes(text, voice_id):
     audio = get_client().text_to_speech.convert(
         voice_id=voice_id,
         text=text,
@@ -101,6 +103,14 @@ def synthesize_speech_bytes(text, voice_id=DEFAULT_VOICE_ID):
         output_format="mp3_44100_128",
     )
     return b"".join(audio)
+
+
+def synthesize_speech_bytes(text, voice_id=DEFAULT_VOICE_ID):
+    normalized_text = (text or "").strip()
+    if not normalized_text:
+        raise RuntimeError("Text-to-speech input is empty")
+
+    return _cached_tts_bytes(normalized_text, voice_id)
 
 
 def get_transcribed_text():

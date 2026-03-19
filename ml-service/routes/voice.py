@@ -397,15 +397,28 @@ def speak_text():
         audio = synthesize_speech_bytes(text)
     except RuntimeError as exc:
         print(f"[voice.speak] runtime error: {exc}", flush=True)
-        return jsonify({"error": str(exc)}), 503
+        return jsonify({
+            "text": text,
+            "audio_base64": None,
+            "mime_type": None,
+            "tts_status": "unavailable",
+            "tts_error": str(exc),
+        })
     except Exception as exc:
         print(f"[voice.speak] synthesis failed: {exc}", flush=True)
-        return jsonify({"error": f"Text-to-speech failed: {exc}"}), 502
+        return jsonify({
+            "text": text,
+            "audio_base64": None,
+            "mime_type": None,
+            "tts_status": "unavailable",
+            "tts_error": f"Text-to-speech failed: {exc}",
+        })
 
     return jsonify({
         "text": text,
         "audio_base64": base64.b64encode(audio).decode("utf-8"),
         "mime_type": "audio/mpeg",
+        "tts_status": "ok",
     })
 
 
@@ -495,14 +508,23 @@ def voice_chat():
     if awaiting_confirmation and ranked_lots:
         formula_summary = payload.get("summary") or {}
 
+    audio_base64 = None
+    mime_type_response = None
+    tts_status = "ok"
+    tts_error = None
+
     try:
         audio = synthesize_speech_bytes(voice_text)
+        audio_base64 = base64.b64encode(audio).decode("utf-8")
+        mime_type_response = "audio/mpeg"
     except RuntimeError as exc:
         print(f"[voice.chat] tts runtime error: {exc}", flush=True)
-        return jsonify({"error": str(exc)}), 503
+        tts_status = "unavailable"
+        tts_error = str(exc)
     except Exception as exc:
         print(f"[voice.chat] tts failed: {exc}", flush=True)
-        return jsonify({"error": f"Text-to-speech failed: {exc}"}), 502
+        tts_status = "unavailable"
+        tts_error = f"Text-to-speech failed: {exc}"
 
     response = {
         "timestamp": datetime.datetime.now().isoformat(),
@@ -520,8 +542,10 @@ def voice_chat():
         "pending_lot": pending_lot,
         "selected_lot": selected_lot,
         "awaiting_confirmation": action == "awaiting_confirmation",
-        "audio_base64": base64.b64encode(audio).decode("utf-8"),
-        "mime_type": "audio/mpeg",
+        "audio_base64": audio_base64,
+        "mime_type": mime_type_response,
+        "tts_status": tts_status,
+        "tts_error": tts_error,
     }
 
     return jsonify(response)
