@@ -9,18 +9,26 @@ export async function buildPredictionContext(targetTime = null) {
 
   let classData = { data: { starting: [], current: [], ended: [] }, queryTime: null };
   if (nebulaApiKey) {
-    classData = await getParkingPressureData(nebulaApiKey, effectiveTargetTime);
+    try {
+      classData = await getParkingPressureData(nebulaApiKey, effectiveTargetTime);
+    } catch (error) {
+      console.error("[Backend][pipeline] Nebula lookup failed:", error.message);
+    }
   }
 
   let weatherMultiplier = 1.0;
   let weatherData = null;
 
   if (weatherApiKey) {
-    weatherData = await getWeatherData(weatherApiKey);
-    if (weatherData.severe) {
-      weatherMultiplier = 1.6;
-    } else if (weatherData.rain || weatherData.snow) {
-      weatherMultiplier = 1.3;
+    try {
+      weatherData = await getWeatherData(weatherApiKey);
+      if (weatherData.severe) {
+        weatherMultiplier = 1.6;
+      } else if (weatherData.rain || weatherData.snow) {
+        weatherMultiplier = 1.3;
+      }
+    } catch (error) {
+      console.error("[Backend][pipeline] Weather lookup failed:", error.message);
     }
   }
 

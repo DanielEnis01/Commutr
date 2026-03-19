@@ -37,8 +37,10 @@ export default function App() {
   const [voicePlaybackActive, setVoicePlaybackActive] = useState(false);
   const audioRef = useRef(null);
   const autoListenTimeoutRef = useRef(null);
+  const autoListenPendingRef = useRef(false);
   const lastSpokenInstructionRef = useRef("");
   const voiceConversationRef = useRef(null);
+  const voiceSessionStartedRef = useRef(false);
   const autoListenAfterAudioRef = useRef(false);
   const pendingNavigationStartRef = useRef(null);
   const voiceInteractionLockRef = useRef(false);
@@ -157,6 +159,7 @@ export default function App() {
     setVoiceResult(null);
     setVoiceConversation(null);
     voiceConversationRef.current = null;
+    voiceSessionStartedRef.current = false;
     setVoiceChatMessages([]);
     setVoiceState({
       busy: false,
@@ -166,6 +169,7 @@ export default function App() {
     setDevToolsOpen(false);
     pendingNavigationStartRef.current = null;
     autoListenAfterAudioRef.current = false;
+    autoListenPendingRef.current = false;
     lastSpokenInstructionRef.current = "";
     voiceInteractionLockRef.current = false;
     setVoicePlaybackActive(false);
@@ -184,6 +188,7 @@ export default function App() {
 
   const startVoicePrompt = async () => {
     const greeting = "Hey, how can I help you find the best parking to get to class today? Tell me what building you are going to.";
+    voiceSessionStartedRef.current = true;
     voiceBusyRef.current = true;
     setVoiceState((current) => ({
       ...current,
@@ -203,22 +208,72 @@ export default function App() {
       }));
       playAudioPayload(response.audio_base64, response.mime_type, {
         autoListenAfterAudio: true,
+        fallbackText: response.text || greeting,
       });
     } catch {
-      voiceInteractionLockRef.current = false;
-      voiceBusyRef.current = false;
       setVoiceState((current) => ({
         ...current,
         busy: false,
         message: greeting,
       }));
+      playAudioPayload(null, null, {
+        autoListenAfterAudio: true,
+        fallbackText: greeting,
+      });
+    }
+  };
+
+  const scheduleAutoListen = () => {
+    if (
+      modeRef.current !== "voice" ||
+      voiceBusyRef.current ||
+      navigationStateRef.current.isNavigating
+    ) {
+      voiceInteractionLockRef.current = false;
+      autoListenPendingRef.current = false;
+      return;
+    }
+
+    autoListenPendingRef.current = true;
+    const autoListenDelayMs = /iPad|iPhone|iPod/.test(navigator.userAgent) ? 1300 : 650;
+    autoListenTimeoutRef.current = window.setTimeout(() => {
+      autoListenTimeoutRef.current = null;
+      autoListenPendingRef.current = false;
+      handleVoiceTrigger({ source: "handsfree" });
+    }, autoListenDelayMs);
+  };
+
+  const finishVoicePlayback = () => {
+    voicePlaybackActiveRef.current = false;
+    setVoicePlaybackActive(false);
+    voiceInteractionLockRef.current = false;
+    const pendingNavigation = pendingNavigationStartRef.current;
+    pendingNavigationStartRef.current = null;
+    if (pendingNavigation) {
+      setNavigationRequest(pendingNavigation);
+    }
+    const shouldAutoListen = autoListenAfterAudioRef.current;
+    autoListenAfterAudioRef.current = false;
+    if (
+      shouldAutoListen &&
+      modeRef.current === "voice" &&
+      !voiceBusyRef.current &&
+      !navigationStateRef.current.isNavigating
+    ) {
+      scheduleAutoListen();
     }
   };
 
   const playAudioPayload = (audioBase64, mimeType = "audio/mpeg", options = {}) => {
     if (!audioBase64) {
-      voiceInteractionLockRef.current = false;
       setVoicePlaybackActive(false);
+      const shouldAutoListen = Boolean(options.autoListenAfterAudio);
+      autoListenAfterAudioRef.current = false;
+      if (shouldAutoListen) {
+        scheduleAutoListen();
+      } else {
+        voiceInteractionLockRef.current = false;
+      }
       return;
     }
     if (audioRef.current) {
@@ -231,6 +286,7 @@ export default function App() {
       window.clearTimeout(autoListenTimeoutRef.current);
       autoListenTimeoutRef.current = null;
     }
+    autoListenPendingRef.current = false;
     const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
     audioRef.current = audio;
     autoListenAfterAudioRef.current = Boolean(options.autoListenAfterAudio);
@@ -240,28 +296,7 @@ export default function App() {
     const finishAudio = () => {
       if (finished) return;
       finished = true;
-      voicePlaybackActiveRef.current = false;
-      setVoicePlaybackActive(false);
-      voiceInteractionLockRef.current = false;
-      const pendingNavigation = pendingNavigationStartRef.current;
-      pendingNavigationStartRef.current = null;
-      if (pendingNavigation) {
-        setNavigationRequest(pendingNavigation);
-      }
-      const shouldAutoListen = autoListenAfterAudioRef.current;
-      autoListenAfterAudioRef.current = false;
-      if (
-        shouldAutoListen &&
-        modeRef.current === "voice" &&
-        !voiceBusyRef.current &&
-        !navigationStateRef.current.isNavigating
-      ) {
-        const autoListenDelayMs = /iPad|iPhone|iPod/.test(navigator.userAgent) ? 1300 : 650;
-        autoListenTimeoutRef.current = window.setTimeout(() => {
-          autoListenTimeoutRef.current = null;
-          handleVoiceTrigger({ source: "handsfree" });
-        }, autoListenDelayMs);
-      }
+      finishVoicePlayback();
     };
 
     audio.onended = () => {
@@ -282,6 +317,7 @@ export default function App() {
         window.clearTimeout(autoListenTimeoutRef.current);
         autoListenTimeoutRef.current = null;
       }
+      autoListenPendingRef.current = false;
       releaseMicrophoneAccess().catch(() => {});
     }
   }, [mode]);
@@ -290,6 +326,7 @@ export default function App() {
     if (autoListenTimeoutRef.current) {
       window.clearTimeout(autoListenTimeoutRef.current);
     }
+    autoListenPendingRef.current = false;
   }, []);
 
   const requestLocationPermission = async () => {
@@ -335,6 +372,7 @@ export default function App() {
       if (
         voiceInteractionLockRef.current ||
         voiceBusyRef.current ||
+        autoListenPendingRef.current ||
         voicePlaybackActiveRef.current ||
         navigationStateRef.current.isNavigating
       ) {
@@ -356,7 +394,7 @@ export default function App() {
       }
 
       const currentConversation = voiceConversationRef.current;
-      if (!currentConversation && source !== "handsfree") {
+      if (!currentConversation && source !== "handsfree" && !voiceSessionStartedRef.current) {
         await startVoicePrompt();
         return;
       }
@@ -419,6 +457,7 @@ export default function App() {
 
       playAudioPayload(response.audio_base64, response.mime_type, {
         autoListenAfterAudio: response.awaiting_confirmation,
+        fallbackText: response.tts_summary || "Voice guidance is ready",
       });
 
       if (response.voice_action === "start_navigation" && response.selected_lot) {
@@ -428,12 +467,14 @@ export default function App() {
       } else if (response.voice_action === "cancelled") {
         setVoiceConversation(null);
         voiceConversationRef.current = null;
+        voiceSessionStartedRef.current = false;
         pendingNavigationStartRef.current = null;
       }
     } catch (error) {
       const errorMessage = String(error?.message || error || "Unknown error");
       console.error("[Commutr] Voice trigger failed", error);
       voiceInteractionLockRef.current = false;
+      autoListenPendingRef.current = false;
       voiceBusyRef.current = false;
       setVoicePlaybackActive(false);
       setVoiceState({
@@ -456,7 +497,9 @@ export default function App() {
     lastSpokenInstructionRef.current = routeInfo.instruction;
     appendChatMessage("assistant", routeInfo.instruction);
     speakText(routeInfo.instruction)
-      .then((response) => playAudioPayload(response.audio_base64, response.mime_type))
+      .then((response) => playAudioPayload(response.audio_base64, response.mime_type, {
+        fallbackText: response.text || routeInfo.instruction,
+      }))
       .catch(() => {});
   };
 
@@ -494,6 +537,7 @@ export default function App() {
             voiceChatMessages={voiceChatMessages}
             isNavigating={navigationState.isNavigating}
             voicePlaybackActive={voicePlaybackActive}
+            voiceAutoPending={autoListenPendingRef.current}
             onVoiceTrigger={() => handleVoiceTrigger({ source: "manual" })}
             devToolsOpen={devToolsOpen}
             onToggleDevTools={() => setDevToolsOpen((current) => !current)}
@@ -508,7 +552,7 @@ export default function App() {
         </div>
         <MobileBottomBar
           message={voiceState.message}
-          voiceBusy={voiceState.busy || voicePlaybackActive}
+          voiceBusy={voiceState.busy || voicePlaybackActive || autoListenPendingRef.current}
           onMicClick={async () => {
             setMode("voice");
             if (voicePermission !== "granted") {

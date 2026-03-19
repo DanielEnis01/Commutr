@@ -1,6 +1,7 @@
 import base64
 import datetime
 import re
+import traceback
 
 from flask import Blueprint, jsonify, request
 
@@ -387,39 +388,33 @@ def _describe_space_availability(occupancy):
 
 @voice_bp.route("/api/ml/voice/speak", methods=["POST"])
 def speak_text():
-    payload = request.get_json() or {}
-    text = (payload.get("text") or "").strip()
-
-    if not text:
-        return jsonify({"error": "text is required"}), 400
-
     try:
+        payload = request.get_json() or {}
+        text = (payload.get("text") or "").strip()
+        print(f"[voice.speak] request received text_length={len(text)}", flush=True)
+
+        if not text:
+            return jsonify({"error": "text is required"}), 400
+
         audio = synthesize_speech_bytes(text)
-    except RuntimeError as exc:
-        print(f"[voice.speak] runtime error: {exc}", flush=True)
+
         return jsonify({
             "text": text,
-            "audio_base64": None,
-            "mime_type": None,
-            "tts_status": "unavailable",
-            "tts_error": str(exc),
+            "audio_base64": base64.b64encode(audio).decode("utf-8"),
+            "mime_type": "audio/mpeg",
+            "tts_status": "ok",
         })
     except Exception as exc:
-        print(f"[voice.speak] synthesis failed: {exc}", flush=True)
+        trace = traceback.format_exc()
+        print(f"[voice.speak] synthesis failed: {exc}\n{trace}", flush=True)
         return jsonify({
-            "text": text,
+            "text": (locals().get("text") or ""),
             "audio_base64": None,
             "mime_type": None,
             "tts_status": "unavailable",
             "tts_error": f"Text-to-speech failed: {exc}",
+            "traceback": trace,
         })
-
-    return jsonify({
-        "text": text,
-        "audio_base64": base64.b64encode(audio).decode("utf-8"),
-        "mime_type": "audio/mpeg",
-        "tts_status": "ok",
-    })
 
 
 @voice_bp.route("/api/ml/voice/chat", methods=["POST"])
@@ -435,6 +430,8 @@ def voice_chat():
 
     if not audio_base64:
         return jsonify({"error": "audio_base64 is required"}), 400
+
+    print(f"[voice.chat] request received mime_type={mime_type} audio_present={bool(audio_base64)}", flush=True)
 
     try:
         audio_bytes = base64.b64decode(audio_base64, validate=True)

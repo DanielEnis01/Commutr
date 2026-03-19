@@ -1,7 +1,7 @@
 const mapStyles = [
   { elementType: "geometry", stylers: [{ color: "#0d0f1a" }] },
   { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "rgba(255,255,255,0.5)" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8d93ad" }] },
   { elementType: "labels.text.stroke", stylers: [{ color: "#0d0f1a" }, { weight: 3 }] },
   {
     featureType: "road",
@@ -26,7 +26,7 @@ const mapStyles = [
   {
     featureType: "road.highway",
     elementType: "labels.text.fill",
-    stylers: [{ color: "rgba(255,255,255,0.75)" }]
+    stylers: [{ color: "#d7ddf0" }]
   },
   {
     featureType: "road.highway.controlled_access",
@@ -61,7 +61,7 @@ const mapStyles = [
   {
     featureType: "road.local",
     elementType: "labels.text.fill",
-    stylers: [{ color: "rgba(255,255,255,0.35)" }]
+    stylers: [{ color: "#636a86" }]
   },
   {
     featureType: "water",
@@ -85,7 +85,7 @@ const mapStyles = [
   {
     featureType: "poi.school",
     elementType: "labels.text.fill",
-    stylers: [{ color: "rgba(255, 255, 255, 0.40)" }]
+    stylers: [{ color: "#737a98" }]
   },
   {
     featureType: "poi.school",
@@ -99,12 +99,12 @@ const mapStyles = [
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "rgba(255, 255, 255, 0.08)" }]
+    stylers: [{ color: "#1c2034" }]
   },
   {
     featureType: "administrative.locality",
     elementType: "labels.text.fill",
-    stylers: [{ color: "rgba(255,255,255,0.5)" }]
+    stylers: [{ color: "#8d93ad" }]
   }
 ];
 

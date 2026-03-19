@@ -1,4 +1,5 @@
 import os
+import traceback
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -22,6 +23,17 @@ def health():
 @app.route("/api/health")
 def api_health():
     return jsonify({"status": "ok", "service": "ml"})
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    print("[ML Service] Unhandled exception:", flush=True)
+    traceback.print_exc()
+    return jsonify({
+        "error": "Internal ML service error",
+        "detail": str(error),
+        "error_type": type(error).__name__,
+    }), 500
 
 
 if __name__ == "__main__":
